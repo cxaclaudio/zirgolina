@@ -119,7 +119,7 @@ export default function Home() {
   const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
     let concelhoId = "";
     try {
-      const lista = await getMunicipios(distritoId);
+      const lista = await getMunicipios(Number(distritoId));
       const normTarget = concelhoNome.toLowerCase()
         .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
       const found = lista.find((m: any) => {
