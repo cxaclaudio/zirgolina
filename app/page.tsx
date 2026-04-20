@@ -17,8 +17,32 @@ const MapView = dynamic(() => import("@/components/MapView"), {
   ),
 });
 
-type SortOrder = "asc" | "desc";
 const HEADER_H = 56;
+
+const GASOLINA_TIPOS = [
+  "gasolina simples 95", "gasolina especial 95", "gasolina especial",
+  "gasolina simples", "gasolina 98", "gasolina",
+];
+const GASOLEO_EXCLUIR = /(agr[ií]col|biodiesel|b[0-9]+|colorid|aditivad)/i;
+const GASOLEO_TIPOS   = ["gasóleo simples", "gasoleo simples", "gasóleo especial", "gasoleo especial", "gasóleo", "gasoleo"];
+const GPL_TIPOS       = ["gpl"];
+
+function precoRelevante(posto: Posto, tipo: "gasolina" | "gasoleo" | "gpl"): number {
+  const tipos =
+    tipo === "gasolina" ? GASOLINA_TIPOS :
+    tipo === "gasoleo"  ? GASOLEO_TIPOS  : GPL_TIPOS;
+
+  const comb = posto.combustiveis?.find((c: any) => {
+    const t = c.tipo?.toLowerCase() ?? "";
+    if (tipo === "gasoleo" && GASOLEO_EXCLUIR.test(t)) return false;
+    return tipos.some(k => t.includes(k));
+  });
+  return (comb as any)?.preco ?? Infinity;
+}
+
+function temCombustivel(posto: Posto, tipo: "gasolina" | "gasoleo" | "gpl"): boolean {
+  return precoRelevante(posto, tipo) !== Infinity;
+}
 
 export default function Home() {
   const { dark, toggle } = useTheme();
@@ -28,7 +52,7 @@ export default function Home() {
   const [fuelId,         setFuelId]         = useState("3201");
   const [distritoAtivo,  setDistritoAtivo]  = useState("");
   const [municipioAtivo, setMunicipioAtivo] = useState("");
-  const [sortOrder,      setSortOrder]      = useState<SortOrder>("asc");
+  const [ordenacao,      setOrdenacao]      = useState("gasolina_asc");
 
   const mapFlyRef = useRef<{
     flyToDistrito: (id: string) => void;
@@ -36,12 +60,20 @@ export default function Home() {
   } | null>(null);
 
   const filtersRef = useRef<FilterValues>({
-    fuelId:"3201", idDistrito:"", idMunicipio:"", marcaId:"", search:"",
+    fuelId: "3201", idDistrito: "", idMunicipio: "", marcaId: "", search: "",
   });
 
-  // ── fetch directo no browser — DGEG permite CORS ──
   const fetchPostos = useCallback(async (f: FilterValues) => {
-    if (!f.idDistrito && !f.marcaId && !f.search) { setPostos([]); return; }
+    const temDistrito  = !!f.idDistrito;
+    const temMunicipio = !!f.idMunicipio;
+    const temMarca     = !!f.marcaId;
+    const podeSearch   =
+      (temDistrito && temMunicipio) ||
+      (temDistrito && temMarca)     ||
+      !!f.search;
+
+    if (!podeSearch) { setPostos([]); return; }
+
     setLoading(true); setError("");
     try {
       const data = await getPostos({
@@ -50,17 +82,25 @@ export default function Home() {
         idMunicipio: f.idMunicipio || undefined,
         marcaId:     f.marcaId     || undefined,
         search:      f.search      || undefined,
+        qty:         9999,
       });
-      setPostos(data);
+      // Filtra postos genéricos e com preço 0
+      const filtered = (data as Posto[]).filter(p =>
+        p.marca &&
+        p.marca.toLowerCase() !== "genérico" &&
+        p.marca.toLowerCase() !== "generico" &&
+        (p.preco === null || p.preco > 0)
+      );
+      setPostos(filtered);
     } catch (e) { setError(String(e)); setPostos([]); }
     finally { setLoading(false); }
   }, []);
 
   function handleReset() {
-    filtersRef.current = { fuelId:"3201", idDistrito:"", idMunicipio:"", marcaId:"", search:"" };
+    filtersRef.current = { fuelId: "3201", idDistrito: "", idMunicipio: "", marcaId: "", search: "" };
     setPostos([]); setError("");
     setDistritoAtivo(""); setMunicipioAtivo("");
-    setFuelId("3201");
+    setFuelId("3201"); setOrdenacao("gasolina_asc");
   }
 
   const handleDistritoClick = useCallback((nome: string, id?: string) => {
@@ -70,7 +110,11 @@ export default function Home() {
     filtersRef.current = newF;
     setDistritoAtivo(id ?? "");
     setMunicipioAtivo("");
-    fetchPostos(newF);
+    if (filtersRef.current.marcaId) {
+      fetchPostos(newF);
+    } else {
+      setPostos([]);
+    }
   }, [fetchPostos, fuelId]);
 
   const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
@@ -78,10 +122,10 @@ export default function Home() {
     try {
       const lista = await getMunicipios(distritoId);
       const normTarget = concelhoNome.toLowerCase()
-        .normalize("NFD").replace(/\p{Diacritic}/gu,"").normalize("NFC");
+        .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
       const found = lista.find((m: any) => {
         const norm = m.Descritivo.toLowerCase()
-          .normalize("NFD").replace(/\p{Diacritic}/gu,"").normalize("NFC");
+          .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
         return norm === normTarget || norm.includes(normTarget) || normTarget.includes(norm);
       });
       if (found) concelhoId = String(found.Id);
@@ -96,6 +140,7 @@ export default function Home() {
     fetchPostos(newF);
   }, [fetchPostos, fuelId]);
 
+  // onChange — só actualiza estado e fly no mapa, SEM fetch
   const handleFilterChange = useCallback((f: FilterValues) => {
     const distritoMudou = f.idDistrito  !== filtersRef.current.idDistrito;
     const concelhoMudou = f.idMunicipio !== filtersRef.current.idMunicipio;
@@ -103,7 +148,6 @@ export default function Home() {
     setFuelId(f.fuelId);
     setDistritoAtivo(f.idDistrito);
     setMunicipioAtivo(f.idMunicipio);
-    fetchPostos(f);
 
     if (concelhoMudou && f.idMunicipio && f.idDistrito) {
       getMunicipios(f.idDistrito).then(lista => {
@@ -113,17 +157,64 @@ export default function Home() {
     } else if (distritoMudou && f.idDistrito) {
       mapFlyRef.current?.flyToDistrito(f.idDistrito);
     }
+  }, []);
+
+  // onSearch — dispara fetch
+  const handleSearch = useCallback((f: FilterValues) => {
+    filtersRef.current = f;
+    fetchPostos(f);
   }, [fetchPostos]);
 
-  const priced   = postos.map(p => p.preco).filter((x): x is number => x !== null);
-  const minP     = priced.length ? Math.min(...priced) : 0;
-  const cheapest = postos.find(p => p.preco === minP);
+  // Tipo activo derivado da ordenação
+  const tipoAtivo: "gasolina" | "gasoleo" | "gpl" | null =
+    ordenacao === "gasolina_asc" ? "gasolina" :
+    ordenacao === "gasoleo_asc"  ? "gasoleo"  :
+    ordenacao === "gpl_asc"      ? "gpl"      : null;
 
-  const sortedPostos = [...postos].sort((a, b) => {
-    if (a.preco === null) return 1;
-    if (b.preco === null) return -1;
-    return sortOrder === "asc" ? a.preco - b.preco : b.preco - a.preco;
+  // GPL: remove postos sem GPL; outros: mostra todos
+  const postosVisiveis = tipoAtivo === "gpl"
+    ? postos.filter(p => temCombustivel(p, "gpl"))
+    : postos;
+
+  const precosVisiveis = postosVisiveis
+    .map(p => {
+      if (!tipoAtivo) return p.preco;
+      const pr = precoRelevante(p, tipoAtivo);
+      return pr === Infinity ? null : pr;
+    })
+    .filter((x): x is number => x !== null);
+
+  const minP = precosVisiveis.length ? Math.min(...precosVisiveis) : 0;
+
+  const cheapestPrice: number | null = (() => {
+    if (!tipoAtivo) {
+      const p = postosVisiveis.find(p => p.preco === minP);
+      return p?.preco ?? null;
+    }
+    const p = postosVisiveis.find(p => precoRelevante(p, tipoAtivo) === minP);
+    if (!p) return null;
+    return minP;
+  })();
+
+  const sortedPostos = [...postosVisiveis].sort((a, b) => {
+    if (tipoAtivo) return precoRelevante(a, tipoAtivo) - precoRelevante(b, tipoAtivo);
+    return 0;
   });
+
+  const mostrarPins =
+    municipioAtivo !== "" ||
+    (distritoAtivo !== "" && filtersRef.current.marcaId !== "" && municipioAtivo === "");
+
+  const mostrarPinsDistrito =
+    distritoAtivo !== "" &&
+    filtersRef.current.marcaId !== "" &&
+    municipioAtivo === "";
+
+  const SORT_BTNS = [
+    { label: "⬇ Gasolina", value: "gasolina_asc" },
+    { label: "⬇ Gasóleo",  value: "gasoleo_asc"  },
+    { label: "⬇ GPL",      value: "gpl_asc"       },
+  ] as const;
 
   return (
     <div style={{ minHeight:"100vh", background:"var(--bg)" }}>
@@ -139,8 +230,7 @@ export default function Home() {
           maxWidth:1600, margin:"0 auto", padding:"0 1.25rem", width:"100%",
           display:"flex", alignItems:"center", justifyContent:"space-between", gap:"1rem",
         }}>
-          {/* Logo — clique reseta */}
-          <div onClick={handleReset}
+          <div onClick={() => window.location.reload()}
             style={{ display:"flex", alignItems:"center", height:HEADER_H, cursor:"pointer" }}>
             <img
               src={dark ? "/logo-dark.png" : "/logo-light.png"}
@@ -164,7 +254,6 @@ export default function Home() {
 
           <div style={{ flex:1 }} />
 
-          {/* Botão tema — ícone SVG monocromático */}
           <button onClick={toggle} style={{
             background:"transparent",
             color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
@@ -174,7 +263,6 @@ export default function Home() {
             fontSize:"0.72rem", fontWeight:500,
           }}>
             {dark ? (
-              /* sol monocromático */
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="4"/>
@@ -188,7 +276,6 @@ export default function Home() {
                 <line x1="17.66" y1="6.34"  x2="19.78" y2="4.22"/>
               </svg>
             ) : (
-              /* lua monocromática */
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
@@ -203,7 +290,7 @@ export default function Home() {
       <div style={{
         maxWidth:1600, margin:"0 auto", padding:"1rem 1.25rem",
         display:"grid",
-        gridTemplateColumns:"280px 540px 1fr",   /* sidebar | lista | mapa */
+        gridTemplateColumns:"280px 540px 1fr",
         gap:"1rem",
         alignItems:"start",
       }}>
@@ -211,17 +298,29 @@ export default function Home() {
         {/* Col 1 — SIDEBAR */}
         <FilterPanel
           onChange={handleFilterChange}
+          onSearch={handleSearch}
           loading={loading}
-          total={postos.length}
+          total={postosVisiveis.length}
           currentFuelId={fuelId}
           distritoAtivo={distritoAtivo}
           municipioAtivo={municipioAtivo}
-          cheapestPrice={cheapest?.preco}
+          cheapestPrice={cheapestPrice}
         />
-
 
         {/* Col 2 — LISTA */}
         <div style={{ display:"flex", flexDirection:"column", gap:"0.55rem", minWidth:0 }}>
+
+          {/* Status */}
+          <div className="card" style={{ padding:"0.45rem 0.875rem",
+            display:"flex", alignItems:"center", gap:"0.5rem" }}>
+            <span style={{
+              width:7, height:7, borderRadius:"50%", flexShrink:0, display:"inline-block",
+              background: loading ? "#f97316" : distritoAtivo ? "#22c55e" : "var(--text-muted)",
+            }} />
+            <span className="text-muted" style={{ fontSize:"0.72rem" }}>
+              {loading ? "A carregar…" : distritoAtivo ? `${postosVisiveis.length} postos` : "Selecione um distrito"}
+            </span>
+          </div>
 
           {/* Placeholder */}
           {!distritoAtivo && !loading && postos.length === 0 && !error && (
@@ -239,16 +338,29 @@ export default function Home() {
             </div>
           )}
 
-          {/* Stats + ordenação */}
+          {/* Hint: distrito sem resultados */}
+          {distritoAtivo && !loading && postos.length === 0 && !error && (
+            <div className="card" style={{ padding:"1.5rem", textAlign:"center",
+              display:"flex", flexDirection:"column", alignItems:"center", gap:"0.4rem" }}>
+              <p style={{ fontWeight:700, fontSize:"0.82rem" }}>Escolha concelho ou marca</p>
+              <p className="text-muted" style={{ fontSize:"0.72rem" }}>
+                Selecione um concelho <strong>ou</strong> uma marca e clique <strong>Pesquisar</strong>.
+              </p>
+            </div>
+          )}
+
+          {/* Stats + botões de ordenação */}
           {postos.length > 0 && (
-            <div style={{ display:"flex", alignItems:"center",
-              justifyContent:"space-between", gap:"0.4rem", flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"0.4rem" }}>
+
+              {/* Stats */}
               <div style={{ display:"flex", gap:"0.35rem" }}>
                 {[
-                  { l:"Postos", v: postos.length.toString() },
-                  { l:"Mín",    v: minP ? minP.toFixed(3) : "—" },
-                  { l:"Média",  v: priced.length
-                    ? (priced.reduce((a,b) => a+b) / priced.length).toFixed(3) : "—" },
+                  { l:"Mín",   v: minP ? minP.toFixed(3) : "—" },
+                  { l:"Média", v: precosVisiveis.length
+                    ? (precosVisiveis.reduce((a,b) => a+b) / precosVisiveis.length).toFixed(3) : "—" },
+                  { l:"Máx",   v: precosVisiveis.length
+                    ? Math.max(...precosVisiveis).toFixed(3) : "—" },
                 ].map(s => (
                   <div key={s.l} className="card"
                     style={{ padding:"0.35rem 0.65rem", textAlign:"center", minWidth:80 }}>
@@ -257,20 +369,29 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-              <button onClick={() => setSortOrder(o => o === "asc" ? "desc" : "asc")}
-                className="btn-ghost"
-                style={{ fontSize:"0.72rem", padding:"0.3rem 0.65rem",
-                  display:"flex", alignItems:"center", gap:"0.35rem" }}>
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                  {sortOrder === "asc"
-                    ? <path d="M2 8.5L6 3.5L10 8.5" stroke="currentColor"
-                        strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    : <path d="M2 3.5L6 8.5L10 3.5" stroke="currentColor"
-                        strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  }
-                </svg>
-                {sortOrder === "asc" ? "Mais baratos" : "Mais caros"}
-              </button>
+
+              {/* Botões de ordenação */}
+              <div style={{ display:"flex", gap:"0.35rem" }}>
+                {SORT_BTNS.map(opt => {
+                  const active = ordenacao === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => setOrdenacao(opt.value)}
+                      className="btn-ghost"
+                      style={{
+                        fontSize:"0.72rem", padding:"0.3rem 0.65rem",
+                        display:"flex", alignItems:"center", gap:"0.35rem",
+                        background:  active ? "var(--accent)" : undefined,
+                        color:       active ? "#fff"          : undefined,
+                        borderColor: active ? "var(--accent)" : undefined,
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -287,17 +408,17 @@ export default function Home() {
               <p className="text-muted" style={{ fontSize:"0.68rem" }}>A carregar…</p>
             </div>
           )}
-          {!loading && distritoAtivo && postos.length === 0 && !error && (
+          {!loading && postos.length > 0 && postosVisiveis.length === 0 && !error && (
             <div className="card" style={{ padding:"1.25rem", textAlign:"center" }}>
-              <p style={{ fontWeight:700, fontSize:"0.8rem" }}>Sem resultados</p>
+              <p style={{ fontWeight:700, fontSize:"0.8rem" }}>Sem postos com GPL</p>
               <p className="text-muted" style={{ fontSize:"0.68rem", marginTop:"0.2rem" }}>
-                Tenta outro filtro.
+                Nenhum posto nesta área tem GPL registado.
               </p>
             </div>
           )}
 
           {!loading && sortedPostos.map(posto => (
-            <PostoCard key={posto.id} posto={posto} />
+            <PostoCard key={posto.id} posto={posto} tipoAtivo={tipoAtivo} />
           ))}
 
           {postos.length > 0 && (
@@ -318,7 +439,8 @@ export default function Home() {
             postos={postos}
             onDistritoClick={handleDistritoClick}
             onConcelhoClick={handleConcelhoClick}
-            mostrarPins={municipioAtivo !== ""}
+            mostrarPins={mostrarPins}
+            mostrarPinsDistrito={mostrarPinsDistrito}
             flyRef={mapFlyRef}
           />
         </div>

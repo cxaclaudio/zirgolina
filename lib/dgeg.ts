@@ -9,11 +9,10 @@ export const ALLOWED_MARCAS = [
   { id: "15",  nome: "CEPSA" },
   { id: "29",  nome: "GALP" },
   { id: "38",  nome: "INTERMARCHÉ" },
-  { id: "39",  nome: "JUMBO" },
   { id: "40",  nome: "LECLERC" },
   { id: "72",  nome: "MOEVE" },
   { id: "78",  nome: "NOVA" },
-  { id: "45",  nome: "OZ Energia" },
+  { id: "45",  nome: "OZ ENERGIA" },
   { id: "52",  nome: "PINGO DOCE" },
   { id: "53",  nome: "PRIO" },
   { id: "58",  nome: "REPSOL" },
@@ -145,7 +144,7 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
   if (!dgegJson.status) throw new Error(dgegJson.mensagem ?? "Sem resultados");
 
   const postoIds: { Id: number }[] = dgegJson.resultado ?? [];
-  const toEnrich = postoIds.slice(0, 50);
+  const toEnrich = postoIds.slice(0, 999);
 
   // 2. Enriquecer com GetDadosPostoMapa (preços de TODOS os combustíveis + morada)
   const fuelLabel = FUELS.find(f => f.id === query.fuelId)?.label ?? "";

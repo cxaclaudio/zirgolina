@@ -15,6 +15,7 @@ export interface FilterValues {
 
 interface Props {
   onChange:       (f: FilterValues) => void;
+  onSearch:       (f: FilterValues) => void;
   loading:        boolean;
   total:          number;
   currentFuelId:  string;
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export default function FilterPanel({
-  onChange, loading, total,
+  onChange, onSearch, loading, total,
   currentFuelId, distritoAtivo, municipioAtivo, cheapestPrice,
 }: Props) {
   const [distritos,   setDistritos]   = useState<Distrito[]>([]);
@@ -39,7 +40,6 @@ export default function FilterPanel({
   const precoNum  = parseFloat(precoCalc) || cheapestPrice || 0;
   const totalCalc = precoNum > 0 ? (precoNum * litros).toFixed(2) : null;
 
-  // Preenche o preço da calculadora com o mais barato automaticamente
   useEffect(() => {
     if (!precoCalc && cheapestPrice) setPrecoCalc(cheapestPrice.toFixed(3));
   }, [cheapestPrice]);
@@ -56,7 +56,6 @@ export default function FilterPanel({
     setIdMunicipio(municipioAtivo);
   }, [municipioAtivo]);
 
-  // Assim que municípios carregam e municipioAtivo está definido
   useEffect(() => {
     if (municipioAtivo && municipios.length > 0) setIdMunicipio(municipioAtivo);
   }, [municipios, municipioAtivo]);
@@ -67,18 +66,17 @@ export default function FilterPanel({
     [currentFuelId, idDistrito, idMunicipio, marcaId]
   );
 
-  // Carregar distritos
   useEffect(() => {
     fetch("/api/distritos").then(r => r.json()).then(d => setDistritos(d.data ?? []));
   }, []);
 
-  // Carregar municípios ao mudar distrito
   useEffect(() => {
     if (!idDistrito) { setMunicipios([]); return; }
     fetch(`/api/municipios?id=${idDistrito}`)
       .then(r => r.json()).then(d => setMunicipios(d.data ?? []));
   }, [idDistrito]);
 
+  // onChange apenas actualiza estado — SEM fetch
   function handleDistritoChange(v: string) {
     setIdDistrito(v); setIdMunicipio("");
     onChange(vals({ idDistrito: v, idMunicipio: "" }));
@@ -104,24 +102,11 @@ export default function FilterPanel({
       maxHeight: "calc(100vh - 80px)", overflowY: "auto", paddingBottom: "0.5rem",
     }}>
 
-      {/* Status */}
-      <div className="card" style={{ padding: "0.45rem 0.875rem",
-        display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <span style={{
-          width: 7, height: 7, borderRadius: "50%", flexShrink: 0, display: "inline-block",
-          background: loading ? "#f97316" : distritoAtivo ? "#22c55e" : "var(--text-muted)",
-        }} />
-        <span className="text-muted" style={{ fontSize: "0.72rem" }}>
-          {loading ? "A carregar…" : distritoAtivo ? `${total} postos` : "Selecione um distrito"}
-        </span>
-      </div>
-
       {/* Filtros */}
       <div className="card" style={{ padding: "0.875rem",
         display: "flex", flexDirection: "column", gap: "0.6rem" }}>
         <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>Filtros</p>
 
-        {/* Distrito */}
         <div>
           <label className="field-label">Distrito</label>
           <select value={idDistrito} onChange={e => handleDistritoChange(e.target.value)}
@@ -133,7 +118,6 @@ export default function FilterPanel({
           </select>
         </div>
 
-        {/* Concelho */}
         <div>
           <label className="field-label">Concelho</label>
           <select
@@ -149,7 +133,6 @@ export default function FilterPanel({
           </select>
         </div>
 
-        {/* Marca */}
         <div>
           <label className="field-label">Marca</label>
           <select value={marcaId} onChange={e => handleMarcaChange(e.target.value)}
@@ -162,7 +145,11 @@ export default function FilterPanel({
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-          <button type="button" onClick={() => onChange(vals())} className="btn-primary">
+          <button
+            type="button"
+            onClick={() => onSearch(vals())}
+            className="btn-primary"
+          >
             Pesquisar
           </button>
           <button type="button" onClick={handleReset} className="btn-ghost">

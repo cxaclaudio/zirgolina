@@ -4,20 +4,47 @@ import type { Posto } from "@/lib/dgeg";
 
 const EURO = new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" });
 
-function fmtDate(v: string | null) {
-  if (!v) return "—";
-  const m = v.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})/);
-  return m ? `${m[1]}/${m[2]}/${m[3]} ${m[4]}:${m[5]}` : v;
+interface Props {
+  posto: Posto;
+  tipoAtivo?: "gasolina" | "gasoleo" | "gpl" | null;
+  precoDestaque?: number | null;
 }
 
-interface Props { posto: Posto; }
+const GASOLINA_TIPOS = [
+  "gasolina simples 95", "gasolina especial 95", "gasolina especial",
+  "gasolina simples", "gasolina 98", "gasolina",
+];
+const GASOLEO_EXCLUIR = /(agr[ií]col|biodiesel|b[0-9]+|colorid|aditivad)/i;
+const GASOLEO_TIPOS   = ["gasóleo simples", "gasoleo simples", "gasóleo especial", "gasoleo especial", "gasóleo", "gasoleo"];
+const GPL_TIPOS       = ["gpl"];
 
-export default function PostoCard({ posto }: Props) {
+function getPrecoDestaque(posto: Posto, tipo: "gasolina" | "gasoleo" | "gpl"): number | null {
+  const tipos =
+    tipo === "gasolina" ? GASOLINA_TIPOS :
+    tipo === "gasoleo"  ? GASOLEO_TIPOS  : GPL_TIPOS;
+  const comb = posto.combustiveis?.find((c: any) => {
+    const t = c.tipo?.toLowerCase() ?? "";
+    if (tipo === "gasoleo" && GASOLEO_EXCLUIR.test(t)) return false;
+    return tipos.some(k => t.includes(k));
+  });
+  return (comb as any)?.preco ?? null;
+}
+
+export default function PostoCard({ posto, tipoAtivo }: Props) {
   const [horarioOpen, setHorarioOpen] = useState(false);
 
   const horarioLines = posto.horario
     ? posto.horario.split(" · ").map(s => s.trim()).filter(Boolean)
     : [];
+
+  // Preço a destacar: usa tipoAtivo se definido, senão preco principal
+  const precoDestaque: number | null = tipoAtivo
+    ? getPrecoDestaque(posto, tipoAtivo)
+    : posto.preco;
+
+  const precoTexto = precoDestaque != null
+    ? `${precoDestaque.toFixed(3)} €/L`
+    : posto.precoTexto ?? "—";
 
   function handleDirecoes(e: React.MouseEvent) {
     e.stopPropagation();
@@ -66,9 +93,9 @@ export default function PostoCard({ posto }: Props) {
         </button>
       </div>
 
-      {/* Preço principal */}
+      {/* Preço destaque */}
       <p style={{ fontWeight:800, fontSize:"1.55rem", color:"var(--accent)", lineHeight:1, margin:"0.6rem 0 0.5rem" }}>
-        {posto.precoTexto}
+        {precoTexto}
       </p>
 
       {/* Combustíveis */}
@@ -88,11 +115,10 @@ export default function PostoCard({ posto }: Props) {
         </div>
       )}
 
-      {/* Meta info */}
+      {/* Meta info — sem "Atualizado" */}
       <div style={{ display:"flex", gap:"1rem", flexWrap:"wrap", marginBottom: horarioLines.length ? "0.4rem" : 0 }}>
         {[
           { label:"Localidade",  value: posto.localidade || posto.municipio },
-          { label:"Atualizado",  value: fmtDate(posto.dataAtualizacao) },
           { label:"Cód. Postal", value: posto.codPostal || "—" },
         ].map(({ label, value }) => (
           <div key={label}>
@@ -130,12 +156,12 @@ export default function PostoCard({ posto }: Props) {
         )}
       </div>
 
-      {/* Estimativas 40/50 L */}
-      {posto.preco !== null && (
+      {/* Estimativas 40/50 L — usa precoDestaque */}
+      {precoDestaque != null && (
         <p className="text-muted" style={{ fontSize:"0.67rem", marginTop:"0.35rem" }}>
-          40 L ≈ <strong style={{ color:"var(--accent)" }}>{EURO.format(posto.preco * 40)}</strong>
+          40 L ≈ <strong style={{ color:"var(--accent)" }}>{EURO.format(precoDestaque * 40)}</strong>
           {" · "}
-          50 L ≈ <strong style={{ color:"var(--accent)" }}>{EURO.format(posto.preco * 50)}</strong>
+          50 L ≈ <strong style={{ color:"var(--accent)" }}>{EURO.format(precoDestaque * 50)}</strong>
         </p>
       )}
     </article>

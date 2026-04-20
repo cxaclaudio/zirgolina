@@ -5,14 +5,14 @@
 @layer base {
   /* ── TEMA ESCURO (default) — preto puro ── */
   :root {
-    --bg:        #000000;
-    --bg-card:   #0a0a0a;
-    --bg-input:  #111111;
-    --border:    rgba(255,255,255,0.09);
-    --text:      #f0eefc;
-    --text-muted:#888899;
-    --accent:    #22c55e;
-    --accent-h:  #16a34a;
+	--bg:        #141414;
+	--bg-card:   #1c1c1c;
+	--bg-input:  #242424;
+	--border:    rgba(255,255,255,0.10);
+	--text:      #f0eefc;
+	--text-muted:#888899;
+	--accent:    #22c55e;
+	--accent-h:  #16a34a;
   }
   /* ── TEMA CLARO ── */
   .light {

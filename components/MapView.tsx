@@ -8,14 +8,15 @@ interface Props {
   onDistritoClick?:    (nome: string, id?: string) => void;
   onConcelhoClick?:    (distritoId: string, concelhoNome: string) => void;
   mostrarPins:         boolean;
+  mostrarPinsDistrito: boolean;
   flyRef?: React.MutableRefObject<{
     flyToDistrito: (id: string) => void;
     flyToConcelho: (distritoId: string, concelhoNome: string) => void;
   } | null>;
 }
 
-const DISTRITOS_URL  = "https://raw.githubusercontent.com/codeforgermany/click_that_hood/master/public/data/portugal.geojson";
-const MUNICIPIOS_URL = "https://e-redes.opendatasoft.com/api/explore/v2.1/catalog/datasets/municipalities-portugal/exports/geojson?limit=-1";
+const DISTRITOS_URL  = "/distritos.geojson";
+const MUNICIPIOS_URL = "/municipios.geojson";
 
 const NOME_PARA_ID: Record<string, string> = {
   "aveiro":"1","beja":"2","braga":"3","bragança":"4","braganca":"4",
@@ -31,12 +32,10 @@ function disCodeToDgeg(disCode: string) { return String(parseInt(disCode, 10)); 
 function getDistritoId(nome: string): string | undefined {
   const norm = nome.trim().toLowerCase()
     .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
-  // 1. match exacto
   for (const [k, v] of Object.entries(NOME_PARA_ID)) {
     const kn = k.normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
     if (norm === kn) return v;
   }
-  // 2. nome do GeoJSON tem sufixo (ex: "Braga District")
   for (const [k, v] of Object.entries(NOME_PARA_ID)) {
     const kn = k.normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
     if (norm.startsWith(kn + " ") || norm.startsWith(kn + ",")) return v;
@@ -68,7 +67,8 @@ function loadLink(href: string) {
 }
 
 export default function MapView({
-  postos, onBoundsChange, onDistritoClick, onConcelhoClick, mostrarPins, flyRef
+  postos, onBoundsChange, onDistritoClick, onConcelhoClick,
+  mostrarPins, mostrarPinsDistrito, flyRef,
 }: Props) {
   const mapRef        = useRef<any>(null);
   const clusterRef    = useRef<any>(null);
@@ -76,10 +76,13 @@ export default function MapView({
   const municipiosRef = useRef<any>(null);
   const containerRef  = useRef<HTMLDivElement>(null);
 
-  const cbDistrito = useRef(onDistritoClick);
-  const cbConcelho = useRef(onConcelhoClick);
+  const cbDistrito             = useRef(onDistritoClick);
+  const cbConcelho             = useRef(onConcelhoClick);
+  const mostrarPinsDistritoRef = useRef(mostrarPinsDistrito);
+
   useEffect(() => { cbDistrito.current = onDistritoClick; }, [onDistritoClick]);
   useEffect(() => { cbConcelho.current = onConcelhoClick; }, [onConcelhoClick]);
+  useEffect(() => { mostrarPinsDistritoRef.current = mostrarPinsDistrito; }, [mostrarPinsDistrito]);
 
   useEffect(() => {
     if (typeof window === "undefined" || mapRef.current) return;
@@ -101,14 +104,14 @@ export default function MapView({
       .then(() => {
         clusterRef.current = (window as any).L.markerClusterGroup({
           maxClusterRadius: 45, showCoverageOnHover: false, disableClusteringAtZoom: 10,
-          iconCreateFunction: () => L.divIcon({ className: "", html: `<div style=""></div>`, iconSize: [0,0], iconAnchor: [0,0] }),
+          iconCreateFunction: () => L.divIcon({ className: "", html: `<div></div>`, iconSize: [0,0], iconAnchor: [0,0] }),
         });
       });
 
-    const sD  = { color:"#22c55e", weight:1.6, fillColor:"#22c55e", fillOpacity:0.06 };
-    const sDH = { fillOpacity:0.2,  weight:2.2 };
-    const sM  = { color:"#22c55e", weight:0.8, fillColor:"#22c55e", fillOpacity:0.03 };
-    const sMH = { fillOpacity:0.14, weight:1.4 };
+    const sD  = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
+    const sDH = { fillOpacity: 0.2,  weight: 2.2 };
+    const sM  = { color: "#22c55e", weight: 0.8, fillColor: "#22c55e", fillOpacity: 0.03 };
+    const sMH = { fillOpacity: 0.14, weight: 1.4 };
 
     const distritoLayerMap: Record<string, any> = {};
     const concelhoLayerMap: Record<string, any> = {};
@@ -130,7 +133,6 @@ export default function MapView({
             L.DomEvent.stopPropagation(e);
             if (e.originalEvent?.target)
               (e.originalEvent.target as HTMLElement).style.outline = "none";
-            // fitBounds sem maxZoom, depois força mínimo 9 para activar municípios
             map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
             setTimeout(() => {
               if (map.getZoom() < 9) map.setZoom(9, { animate: true });
@@ -197,7 +199,6 @@ export default function MapView({
         },
       });
 
-      // Actualizar flyRef com flyToConcelho depois dos municípios carregarem
       if (flyRef) {
         const prev = flyRef.current;
         flyRef.current = {
@@ -213,6 +214,12 @@ export default function MapView({
 
       function syncLayers() {
         const z = map.getZoom();
+        // Com pins no nível de distrito, mantém sempre o layer de distritos visível
+        if (mostrarPinsDistritoRef.current) {
+          if (municipiosRef.current && map.hasLayer(municipiosRef.current))  map.removeLayer(municipiosRef.current);
+          if (distritosRef.current  && !map.hasLayer(distritosRef.current))  map.addLayer(distritosRef.current);
+          return;
+        }
         if (z >= 9) {
           if (distritosRef.current  && map.hasLayer(distritosRef.current))  map.removeLayer(distritosRef.current);
           if (municipiosRef.current && !map.hasLayer(municipiosRef.current)) map.addLayer(municipiosRef.current);
@@ -246,13 +253,22 @@ export default function MapView({
       }
       clusterRef.current.clearLayers();
       const bounds: [number, number][] = [];
+	  
+	  const PT_BOUNDS = { minLat: 29.0, maxLat: 42.2, minLng: -31.3, maxLng: -6.1 };
+
+	  function dentroDePortugal(lat: number, lng: number): boolean {
+	  return (
+		lat >= PT_BOUNDS.minLat && lat <= PT_BOUNDS.maxLat &&
+		lng >= PT_BOUNDS.minLng && lng <= PT_BOUNDS.maxLng
+	  );
+	}
 
       postos.forEach(posto => {
         if (posto.lat === null || posto.lng === null) return;
         const icon = L.divIcon({
           className: "",
-			html: `<div style="width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
-			iconSize: [14, 14], iconAnchor: [7, 7],
+          html: `<div style="width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
+          iconSize: [14, 14], iconAnchor: [7, 7],
         });
         const combsHtml = posto.combustiveis.map((c: any) => `
           <div style="display:flex;justify-content:space-between;gap:1rem;font-size:0.72rem">
@@ -263,7 +279,7 @@ export default function MapView({
 
         clusterRef.current.addLayer(
           L.marker([posto.lat, posto.lng], { icon })
-.bindPopup(`
+            .bindPopup(`
   <div style="min-width:180px">
     <p style="font-weight:700;margin:0 0 2px">
       <span style="color:var(--accent)">${posto.marca}</span>
