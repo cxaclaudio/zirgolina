@@ -149,7 +149,7 @@ export default function Home() {
     setMunicipioAtivo(f.idMunicipio);
 
     if (concelhoMudou && f.idMunicipio && f.idDistrito) {
-      getMunicipios(f.idDistrito).then(lista => {
+      getMunicipios(Number(f.idDistrito)).then(lista => {
         const m = (lista as any[]).find(x => String(x.Id) === f.idMunicipio);
         if (m) mapFlyRef.current?.flyToConcelho(f.idDistrito, m.Descritivo);
       });
