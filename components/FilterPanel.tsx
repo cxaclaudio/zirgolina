@@ -1,0 +1,234 @@
+"use client";
+import { useEffect, useState, useCallback } from "react";
+import { ALLOWED_MARCAS } from "@/lib/dgeg";
+
+interface Distrito  { Id: number; Descritivo: string; }
+interface Municipio { Id: number; Descritivo: string; }
+
+export interface FilterValues {
+  fuelId:      string;
+  idDistrito:  string;
+  idMunicipio: string;
+  marcaId:     string;
+  search:      string;
+}
+
+interface Props {
+  onChange:       (f: FilterValues) => void;
+  loading:        boolean;
+  total:          number;
+  currentFuelId:  string;
+  distritoAtivo:  string;
+  municipioAtivo: string;
+  cheapestPrice?: number | null;
+}
+
+export default function FilterPanel({
+  onChange, loading, total,
+  currentFuelId, distritoAtivo, municipioAtivo, cheapestPrice,
+}: Props) {
+  const [distritos,   setDistritos]   = useState<Distrito[]>([]);
+  const [municipios,  setMunicipios]  = useState<Municipio[]>([]);
+  const [idDistrito,  setIdDistrito]  = useState("");
+  const [idMunicipio, setIdMunicipio] = useState("");
+  const [marcaId,     setMarcaId]     = useState("");
+
+  // Calculadora
+  const [litros,    setLitros]    = useState(50);
+  const [precoCalc, setPrecoCalc] = useState("");
+  const precoNum  = parseFloat(precoCalc) || cheapestPrice || 0;
+  const totalCalc = precoNum > 0 ? (precoNum * litros).toFixed(2) : null;
+
+  // Preenche o preço da calculadora com o mais barato automaticamente
+  useEffect(() => {
+    if (!precoCalc && cheapestPrice) setPrecoCalc(cheapestPrice.toFixed(3));
+  }, [cheapestPrice]);
+
+  // Sync distrito do mapa → select
+  useEffect(() => {
+    if (distritoAtivo === idDistrito) return;
+    setIdDistrito(distritoAtivo);
+  }, [distritoAtivo]);
+
+  // Sync município do mapa → select
+  useEffect(() => {
+    if (municipioAtivo === idMunicipio) return;
+    setIdMunicipio(municipioAtivo);
+  }, [municipioAtivo]);
+
+  // Assim que municípios carregam e municipioAtivo está definido
+  useEffect(() => {
+    if (municipioAtivo && municipios.length > 0) setIdMunicipio(municipioAtivo);
+  }, [municipios, municipioAtivo]);
+
+  const vals = useCallback(
+    (ov: Partial<FilterValues> = {}): FilterValues =>
+      ({ fuelId: currentFuelId, idDistrito, idMunicipio, marcaId, search: "", ...ov }),
+    [currentFuelId, idDistrito, idMunicipio, marcaId]
+  );
+
+  // Carregar distritos
+  useEffect(() => {
+    fetch("/api/distritos").then(r => r.json()).then(d => setDistritos(d.data ?? []));
+  }, []);
+
+  // Carregar municípios ao mudar distrito
+  useEffect(() => {
+    if (!idDistrito) { setMunicipios([]); return; }
+    fetch(`/api/municipios?id=${idDistrito}`)
+      .then(r => r.json()).then(d => setMunicipios(d.data ?? []));
+  }, [idDistrito]);
+
+  function handleDistritoChange(v: string) {
+    setIdDistrito(v); setIdMunicipio("");
+    onChange(vals({ idDistrito: v, idMunicipio: "" }));
+  }
+  function handleMunicipioChange(v: string) {
+    setIdMunicipio(v);
+    onChange(vals({ idMunicipio: v }));
+  }
+  function handleMarcaChange(v: string) {
+    setMarcaId(v);
+    onChange(vals({ marcaId: v }));
+  }
+  function handleReset() {
+    setIdDistrito(""); setIdMunicipio(""); setMarcaId("");
+    setPrecoCalc("");
+    onChange({ fuelId: currentFuelId, idDistrito: "", idMunicipio: "", marcaId: "", search: "" });
+  }
+
+  return (
+    <aside style={{
+      display: "flex", flexDirection: "column", gap: "0.5rem",
+      position: "sticky", top: 72,
+      maxHeight: "calc(100vh - 80px)", overflowY: "auto", paddingBottom: "0.5rem",
+    }}>
+
+      {/* Status */}
+      <div className="card" style={{ padding: "0.45rem 0.875rem",
+        display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <span style={{
+          width: 7, height: 7, borderRadius: "50%", flexShrink: 0, display: "inline-block",
+          background: loading ? "#f97316" : distritoAtivo ? "#22c55e" : "var(--text-muted)",
+        }} />
+        <span className="text-muted" style={{ fontSize: "0.72rem" }}>
+          {loading ? "A carregar…" : distritoAtivo ? `${total} postos` : "Selecione um distrito"}
+        </span>
+      </div>
+
+      {/* Filtros */}
+      <div className="card" style={{ padding: "0.875rem",
+        display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+        <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>Filtros</p>
+
+        {/* Distrito */}
+        <div>
+          <label className="field-label">Distrito</label>
+          <select value={idDistrito} onChange={e => handleDistritoChange(e.target.value)}
+            className="field-input">
+            <option value="">Todos</option>
+            {distritos.map(d =>
+              <option key={d.Id} value={String(d.Id)}>{d.Descritivo}</option>
+            )}
+          </select>
+        </div>
+
+        {/* Concelho */}
+        <div>
+          <label className="field-label">Concelho</label>
+          <select
+            value={idMunicipio}
+            onChange={e => handleMunicipioChange(e.target.value)}
+            disabled={!municipios.length}
+            className="field-input"
+            style={{ opacity: municipios.length ? 1 : 0.45 }}>
+            <option value="">Todos</option>
+            {municipios.map(m =>
+              <option key={m.Id} value={String(m.Id)}>{m.Descritivo}</option>
+            )}
+          </select>
+        </div>
+
+        {/* Marca */}
+        <div>
+          <label className="field-label">Marca</label>
+          <select value={marcaId} onChange={e => handleMarcaChange(e.target.value)}
+            className="field-input">
+            <option value="">Todas</option>
+            {ALLOWED_MARCAS.map(m =>
+              <option key={m.id} value={m.id}>{m.nome}</option>
+            )}
+          </select>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+          <button type="button" onClick={() => onChange(vals())} className="btn-primary">
+            Pesquisar
+          </button>
+          <button type="button" onClick={handleReset} className="btn-ghost">
+            Limpar
+          </button>
+        </div>
+      </div>
+
+      {/* Calculadora */}
+      <div className="card" style={{ padding: "0.875rem",
+        display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+        <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>Calculadora</p>
+
+        <div>
+          <label className="field-label">Preço (€/L)</label>
+          <input
+            type="number" step="0.001" min="0" max="5"
+            value={precoCalc}
+            onChange={e => setPrecoCalc(e.target.value)}
+            placeholder={cheapestPrice ? cheapestPrice.toFixed(3) : "0.000"}
+            className="field-input"
+          />
+        </div>
+
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between",
+            alignItems: "center", marginBottom: "0.3rem" }}>
+            <label className="field-label" style={{ marginBottom: 0 }}>Litros</label>
+            <span style={{ fontWeight: 700, fontSize: "0.8rem", color: "var(--accent)" }}>
+              {litros} L
+            </span>
+          </div>
+          <input
+            type="range" min="5" max="100" step="5"
+            value={litros}
+            onChange={e => setLitros(Number(e.target.value))}
+            style={{ width: "100%", accentColor: "var(--accent)", cursor: "pointer" }}
+          />
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span className="text-muted" style={{ fontSize: "0.6rem" }}>5 L</span>
+            <span className="text-muted" style={{ fontSize: "0.6rem" }}>100 L</span>
+          </div>
+        </div>
+
+        <div style={{
+          background: "var(--bg-input)", borderRadius: "0.6rem",
+          padding: "0.65rem 0.875rem", textAlign: "center",
+          border: "1px solid var(--border)",
+        }}>
+          {totalCalc ? (
+            <>
+              <p style={{ fontWeight: 800, fontSize: "1.4rem",
+                color: "var(--accent)", lineHeight: 1 }}>
+                {totalCalc} €
+              </p>
+              <p className="text-muted" style={{ fontSize: "0.62rem", marginTop: "0.2rem" }}>
+                {litros} L × {precoNum.toFixed(3)} €/L
+              </p>
+            </>
+          ) : (
+            <p className="text-muted" style={{ fontSize: "0.72rem" }}>
+              Insira um preço ou pesquise postos
+            </p>
+          )}
+        </div>
+      </div>
+    </aside>
+  );
+}

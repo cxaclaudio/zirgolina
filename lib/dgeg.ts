@@ -1,0 +1,250 @@
+const DGEG   = "https://precoscombustiveis.dgeg.gov.pt/api/PrecoComb";
+const ARCGIS = "https://services3.arcgis.com/L8wRKpelHTajqMnK/ArcGIS/rest/services/PostosAbastecimento/FeatureServer/0/query";
+
+// IDs das marcas permitidas
+export const ALLOWED_MARCAS = [
+  { id: "2",   nome: "ALVES BANDEIRA" },
+  { id: "5",   nome: "AUCHAN" },
+  { id: "11",  nome: "BP" },
+  { id: "15",  nome: "CEPSA" },
+  { id: "29",  nome: "GALP" },
+  { id: "38",  nome: "INTERMARCHÉ" },
+  { id: "39",  nome: "JUMBO" },
+  { id: "40",  nome: "LECLERC" },
+  { id: "72",  nome: "MOEVE" },
+  { id: "78",  nome: "NOVA" },
+  { id: "45",  nome: "OZ Energia" },
+  { id: "52",  nome: "PINGO DOCE" },
+  { id: "53",  nome: "PRIO" },
+  { id: "58",  nome: "REPSOL" },
+  { id: "60",  nome: "SHELL" },
+];
+
+// Todos os tipos de combustível disponíveis no API da DGEG
+export const FUELS = [
+  { id: "3201", label: "Gasolina simples 95" },
+  { id: "3205", label: "Gasolina especial 95" },
+  { id: "3400", label: "Gasolina 98" },
+  { id: "3405", label: "Gasolina especial 98" },
+  { id: "2101", label: "Gasóleo simples" },
+  { id: "2105", label: "Gasóleo especial" },
+  { id: "1120", label: "GPL Auto" },
+  { id: "2150", label: "Gasóleo colorido" },
+];
+
+export interface Distrito  { Id: number; Descritivo: string; }
+export interface Municipio { Id: number; Descritivo: string; IdDistrito: number; }
+
+export interface CombustivelPreco {
+  tipo:  string;
+  preco: number;
+  texto: string;
+}
+
+export interface Posto {
+  id:              number;
+  nome:            string;
+  marca:           string;
+  distrito:        string;
+  municipio:       string;
+  morada:          string;
+  localidade:      string;
+  codPostal:       string;
+  combustiveis:    CombustivelPreco[];   // TODOS os combustíveis disponíveis
+  preco:           number | null;        // preço do combustível filtrado
+  precoTexto:      string;
+  dataAtualizacao: string | null;
+  lat:             number | null;
+  lng:             number | null;
+  horario:         string;
+}
+
+async function dgegGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${DGEG}/${path}`, {
+    next: { revalidate: 3600 },
+    headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" },
+  });
+  if (!res.ok) throw new Error(`DGEG ${path} → HTTP ${res.status}`);
+  const json = await res.json();
+  if (!json.status) throw new Error(`DGEG: ${json.mensagem}`);
+  return json.resultado as T;
+}
+
+export async function getDistritos(): Promise<Distrito[]> {
+  return (await dgegGet<Distrito[]>("GetDistritos"))
+    .sort((a, b) => a.Descritivo.localeCompare(b.Descritivo, "pt"));
+}
+
+export async function getMunicipios(idDistrito: number): Promise<Municipio[]> {
+  return (await dgegGet<Municipio[]>(`GetMunicipios?idDistrito=${idDistrito}`))
+    .sort((a, b) => a.Descritivo.localeCompare(b.Descritivo, "pt"));
+}
+
+function parsePrecoStr(s: string): number | null {
+  const m = s.replace(",", ".").match(/[\d.]+/);
+  return m ? parseFloat(m[0]) : null;
+}
+
+interface DadosMapa {
+  Nome:            string;
+  Marca:           string;
+  Combustiveis:    { TipoCombustivel: string; Preco: string }[] | null;
+  Morada:          { Morada: string; Localidade: string; CodPostal: string };
+  HorarioPosto:    { DiasUteis: string | null; Sabado: string | null; Domingo: string | null };
+  DataAtualizacao: string;
+}
+
+async function getDadosMapa(id: number): Promise<DadosMapa | null> {
+  try {
+    const res = await fetch(`${DGEG}/GetDadosPostoMapa?id=${id}`, {
+      next: { revalidate: 300 },
+      headers: {
+        Accept: "application/json",
+        Referer: "https://precoscombustiveis.dgeg.gov.pt/",
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.status ? (json.resultado as DadosMapa) : null;
+  } catch {
+    return null;
+  }
+}
+
+export interface PostoQuery {
+  fuelId:       string;   // ID numérico do tipo de combustível
+  idDistrito?:  string;
+  idMunicipio?: string;
+  marcaId?:     string;
+  search?:      string;
+  bbox?:        string;
+}
+
+export async function getPostos(query: PostoQuery): Promise<Posto[]> {
+  // 1. ListarDadosPostos → filtra por distrito/município/combustível server-side
+  const dgegParams = new URLSearchParams({
+    idsTiposComb:  query.fuelId,
+    idMarca:       query.marcaId ?? "",
+    idTipoPosto:   "",
+    idDistrito:    query.idDistrito  ?? "",
+    idsMunicipios: query.idMunicipio ?? "",
+    qtd:           "200",
+  });
+
+  const dgegRes = await fetch(`${DGEG}/ListarDadosPostos?${dgegParams}`, {
+    next: { revalidate: 300 },
+    headers: {
+      Accept: "application/json",
+      Referer: "https://precoscombustiveis.dgeg.gov.pt/",
+      "User-Agent": "Mozilla/5.0",
+    },
+  });
+  if (!dgegRes.ok) throw new Error(`DGEG HTTP ${dgegRes.status}`);
+  const dgegJson = await dgegRes.json();
+  if (!dgegJson.status) throw new Error(dgegJson.mensagem ?? "Sem resultados");
+
+  const postoIds: { Id: number }[] = dgegJson.resultado ?? [];
+  const toEnrich = postoIds.slice(0, 50);
+
+  // 2. Enriquecer com GetDadosPostoMapa (preços de TODOS os combustíveis + morada)
+  const fuelLabel = FUELS.find(f => f.id === query.fuelId)?.label ?? "";
+
+  const enriched = await Promise.all(
+    toEnrich.map(async (p) => {
+      const dados = await getDadosMapa(p.Id);
+      const combs = dados?.Combustiveis ?? [];
+
+      // Todos os combustíveis com preço
+      const combustiveis: CombustivelPreco[] = combs
+        .map(c => {
+          const preco = parsePrecoStr(c.Preco);
+          return preco !== null ? { tipo: c.TipoCombustivel, preco, texto: `${preco.toFixed(3)} €/L` } : null;
+        })
+        .filter((x): x is CombustivelPreco => x !== null);
+
+      // Preço do combustível filtrado (match por fuelLabel)
+      const matchedComb = combs.find(c =>
+        c.TipoCombustivel.toLowerCase().includes(fuelLabel.toLowerCase().replace("gasolina especial", "especial").split(" ")[0])
+        || c.TipoCombustivel === fuelLabel
+      );
+      // Fallback: match mais directo
+      const matchedComb2 = combs.find(c => c.TipoCombustivel === fuelLabel)
+        ?? combs.find(c => c.TipoCombustivel.toLowerCase().includes(fuelLabel.toLowerCase().split(" ").slice(-1)[0]));
+      const preco = matchedComb2 ? parsePrecoStr(matchedComb2.Preco) : (combustiveis[0]?.preco ?? null);
+
+      const horario = dados?.HorarioPosto
+        ? [
+            dados.HorarioPosto.DiasUteis && `Dias úteis: ${dados.HorarioPosto.DiasUteis}`,
+            dados.HorarioPosto.Sabado    && `Sáb: ${dados.HorarioPosto.Sabado}`,
+            dados.HorarioPosto.Domingo   && `Dom: ${dados.HorarioPosto.Domingo}`,
+          ].filter(Boolean).join(" · ")
+        : "";
+
+      return {
+        id:              p.Id,
+        nome:            dados?.Nome              ?? `Posto ${p.Id}`,
+        marca:           dados?.Marca             ?? "—",
+        distrito:        "—",
+        municipio:       dados?.Morada?.Localidade ?? "—",
+        morada:          dados?.Morada?.Morada    ?? "",
+        localidade:      dados?.Morada?.Localidade ?? "",
+        codPostal:       dados?.Morada?.CodPostal ?? "",
+        combustiveis,
+        preco,
+        precoTexto:      preco !== null ? `${preco.toFixed(3)} €/L` : "Sem preço",
+        dataAtualizacao: dados?.DataAtualizacao   ?? null,
+        lat:             null as number | null,
+        lng:             null as number | null,
+        horario,
+      };
+    })
+  );
+
+  // 3. Coordenadas via ArcGIS (CodInterno = Id DGEG)
+  const ids = toEnrich.map(p => p.Id).join(",");
+  const arcParams = new URLSearchParams({
+    where:             `CodInterno IN (${ids})`,
+    outFields:         "CodInterno,nLatitude,nLongitude",
+    returnGeometry:    "false",
+    resultRecordCount: "500",
+    f:                 "json",
+  });
+  if (query.bbox) {
+    arcParams.set("geometry",     query.bbox);
+    arcParams.set("geometryType", "esriGeometryEnvelope");
+    arcParams.set("spatialRel",   "esriSpatialRelIntersects");
+    arcParams.set("inSR",         "4326");
+  }
+
+  try {
+    const arcRes = await fetch(`${ARCGIS}?${arcParams}`, { next: { revalidate: 300 } });
+    if (arcRes.ok) {
+      const arcJson = await arcRes.json();
+      const coordMap: Record<number, { lat: number; lng: number }> = {};
+      for (const f of (arcJson.features ?? []) as { attributes: Record<string, unknown> }[]) {
+        const a = f.attributes;
+        if (typeof a.CodInterno === "number" && typeof a.nLatitude === "number")
+          coordMap[a.CodInterno as number] = { lat: a.nLatitude as number, lng: a.nLongitude as number };
+      }
+      for (const p of enriched) {
+        const c = coordMap[p.id];
+        if (c) { p.lat = c.lat; p.lng = c.lng; }
+      }
+    }
+  } catch { /* coords opcionais */ }
+
+  // 4. Filtro search
+  let result = enriched as Posto[];
+  if (query.search) {
+    const q = query.search.toLowerCase();
+    result = result.filter(p => [p.nome, p.marca, p.morada, p.localidade, p.codPostal]
+      .some(v => v.toLowerCase().includes(q)));
+  }
+
+  return result.sort((a, b) => {
+    if (a.preco === null) return 1;
+    if (b.preco === null) return -1;
+    return a.preco - b.preco;
+  });
+}
