@@ -82,7 +82,6 @@ export default function Home() {
         idMunicipio: f.idMunicipio || undefined,
         marcaId:     f.marcaId     || undefined,
         search:      f.search      || undefined,
-        qty:         9999,
       });
       // Filtra postos genéricos e com preço 0
       const filtered = (data as Posto[]).filter(p =>
