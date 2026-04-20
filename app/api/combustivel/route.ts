@@ -5,7 +5,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   try {
     const data = await getPostos({
-      combustivel:  searchParams.get("fuelId")      ?? "3201",
+      fuelId:  searchParams.get("fuelId")      ?? "3201",
       idDistrito:   searchParams.get("idDistrito")  ?? undefined,
       idMunicipio:  searchParams.get("idMunicipio") ?? undefined,
       marcaId:      searchParams.get("marcaId")     ?? undefined,
