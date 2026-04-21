@@ -67,9 +67,9 @@ function getDistritoId(nome: string): string | undefined {
 
 function coordsDentroDeDistrito(lat: number, lng: number, distritoNome: string): boolean {
   const id = getDistritoId(distritoNome);
-  if (!id) return true; // sem id conhecido, deixa passar
+  if (!id) return true;
   const db = DISTRITO_BOUNDS[id];
-  if (!db) return true; // Açores/Madeira sem bounds definidos, deixa passar
+  if (!db) return true;
   return lat >= db[0] && lat <= db[1] && lng >= db[2] && lng <= db[3];
 }
 
@@ -88,6 +88,7 @@ export default function MapView({
 }: Props) {
   const mapRef        = useRef<any>(null);
   const clusterRef    = useRef<any>(null);
+  const mapReadyRef   = useRef(false);
   const distritosRef  = useRef<any>(null);
   const municipiosRef = useRef<any>(null);
   const containerRef  = useRef<HTMLDivElement>(null);
@@ -126,6 +127,7 @@ export default function MapView({
         maxClusterRadius: 45, showCoverageOnHover: false, disableClusteringAtZoom: 10,
         iconCreateFunction: () => L.divIcon({ className: "", html: `<div></div>`, iconSize: [0,0], iconAnchor: [0,0] }),
       });
+      mapReadyRef.current = true;
 
       const sD  = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
       const sDH = { fillOpacity: 0.2,  weight: 2.2 };
@@ -135,7 +137,6 @@ export default function MapView({
       const distritoLayerMap: Record<string, any> = {};
       const concelhoLayerMap: Record<string, any> = {};
 
-      // ── DISTRITOS ──
       fetchGeoJSON(DISTRITOS_URL).then(geojson => {
         if (!geojson) return;
         distritosRef.current = L.geoJSON(geojson, {
@@ -182,7 +183,6 @@ export default function MapView({
         }
       });
 
-      // ── MUNICÍPIOS ──
       fetchGeoJSON(MUNICIPIOS_URL).then(geojson => {
         if (!geojson) return;
         municipiosRef.current = L.geoJSON(geojson, {
@@ -259,83 +259,90 @@ export default function MapView({
 
   // ── Pins ──
   useEffect(() => {
-    if (!mapRef.current || !clusterRef.current) return;
+    if (!mapRef.current) return;
 
-    (async () => {
-      const L = (await import("leaflet")).default;
+    const tryAdd = (retries = 20) => {
+      if (!mapReadyRef.current || !clusterRef.current) {
+        if (retries > 0) setTimeout(() => tryAdd(retries - 1), 200);
+        return;
+      }
 
-      if (mapRef.current.hasLayer(clusterRef.current))
-        mapRef.current.removeLayer(clusterRef.current);
-      if (!mostrarPins || postos.length === 0) return;
+      (async () => {
+        const L = (await import("leaflet")).default;
 
-      clusterRef.current.clearLayers();
-      const bounds: [number, number][] = [];
+        if (mapRef.current.hasLayer(clusterRef.current))
+          mapRef.current.removeLayer(clusterRef.current);
+        if (!mostrarPins || postos.length === 0) return;
 
-      postos.forEach(posto => {
-        if (posto.lat === null || posto.lng === null) return;
+        clusterRef.current.clearLayers();
+        const bounds: [number, number][] = [];
 
-        // Filtra fora de Portugal
-        if (
-          posto.lat < PT_BOUNDS.minLat || posto.lat > PT_BOUNDS.maxLat ||
-          posto.lng < PT_BOUNDS.minLng || posto.lng > PT_BOUNDS.maxLng
-        ) return;
+        postos.forEach(posto => {
+          if (posto.lat === null || posto.lng === null) return;
 
-        // Filtra coords que não correspondem ao distrito do posto
-        if (posto.distrito && !coordsDentroDeDistrito(posto.lat, posto.lng, posto.distrito)) return;
+          if (
+            posto.lat < PT_BOUNDS.minLat || posto.lat > PT_BOUNDS.maxLat ||
+            posto.lng < PT_BOUNDS.minLng || posto.lng > PT_BOUNDS.maxLng
+          ) return;
 
-        const icon = L.divIcon({
-          className: "",
-          html: `<div style="width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
-          iconSize: [14, 14], iconAnchor: [7, 7],
+          if (posto.distrito && !coordsDentroDeDistrito(posto.lat, posto.lng, posto.distrito)) return;
+
+          const icon = L.divIcon({
+            className: "",
+            html: `<div style="width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
+            iconSize: [14, 14], iconAnchor: [7, 7],
+          });
+
+          const combsHtml = posto.combustiveis.map((c: any) => `
+            <div style="display:flex;justify-content:space-between;gap:1rem;font-size:0.72rem">
+              <span style="color:#888">${c.tipo}</span>
+              <b>${c.texto}</b>
+            </div>`
+          ).join("") || `<span style="font-size:0.72rem;color:#888">Sem preços</span>`;
+
+          clusterRef.current.addLayer(
+            L.marker([posto.lat, posto.lng], { icon })
+              .bindPopup(`
+<div style="min-width:180px">
+  <p style="font-weight:700;margin:0 0 2px">
+    <span style="color:var(--accent)">${posto.marca}</span>
+    <span style="color:#888;margin:0 0.3rem">|</span>
+    ${posto.nome}
+  </p>
+  <p style="font-size:0.72rem;color:#888;margin:0 0 6px">${posto.localidade}</p>
+  ${combsHtml}
+  <a
+    href="${posto.lat && posto.lng
+      ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", "))}`
+    }"
+    target="_blank"
+    rel="noopener noreferrer"
+    style="
+      display:inline-flex;align-items:center;gap:0.3rem;
+      margin-top:8px;padding:4px 10px;
+      border:1px solid #d1d5db;border-radius:6px;
+      font-size:0.67rem;font-weight:500;color:#555;
+      text-decoration:none;
+    "
+  >
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+    </svg>
+    Direções
+  </a>
+</div>`, { maxWidth: 260 })
+          );
+          bounds.push([posto.lat, posto.lng]);
         });
 
-        const combsHtml = posto.combustiveis.map((c: any) => `
-          <div style="display:flex;justify-content:space-between;gap:1rem;font-size:0.72rem">
-            <span style="color:#888">${c.tipo}</span>
-            <b>${c.texto}</b>
-          </div>`
-        ).join("") || `<span style="font-size:0.72rem;color:#888">Sem preços</span>`;
+        mapRef.current.addLayer(clusterRef.current);
+        if (bounds.length) mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+      })();
+    };
 
-        clusterRef.current.addLayer(
-          L.marker([posto.lat, posto.lng], { icon })
-            .bindPopup(`
-  <div style="min-width:180px">
-    <p style="font-weight:700;margin:0 0 2px">
-      <span style="color:var(--accent)">${posto.marca}</span>
-      <span style="color:#888;margin:0 0.3rem">|</span>
-      ${posto.nome}
-    </p>
-    <p style="font-size:0.72rem;color:#888;margin:0 0 6px">${posto.localidade}</p>
-    ${combsHtml}
-    <a
-      href="${posto.lat && posto.lng
-        ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
-        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", "))}`
-      }"
-      target="_blank"
-      rel="noopener noreferrer"
-      style="
-        display:inline-flex;align-items:center;gap:0.3rem;
-        margin-top:8px;padding:4px 10px;
-        border:1px solid #d1d5db;border-radius:6px;
-        font-size:0.67rem;font-weight:500;color:#555;
-        text-decoration:none;
-      "
-    >
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
-      </svg>
-      Direções
-    </a>
-  </div>`, { maxWidth: 260 })
-        );
-        bounds.push([posto.lat, posto.lng]);
-      });
-
-      mapRef.current.addLayer(clusterRef.current);
-      if (bounds.length) mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
-    })();
+    tryAdd();
   }, [postos, mostrarPins]);
 
   return (
