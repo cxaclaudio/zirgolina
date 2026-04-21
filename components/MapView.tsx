@@ -51,21 +51,6 @@ async function fetchGeoJSON(url: string) {
   } catch { return null; }
 }
 
-function loadScript(src: string): Promise<void> {
-  return new Promise(resolve => {
-    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-    const s = document.createElement("script");
-    s.src = src; s.async = true; s.onload = () => resolve();
-    document.head.appendChild(s);
-  });
-}
-function loadLink(href: string) {
-  if (document.querySelector(`link[href="${href}"]`)) return;
-  const l = document.createElement("link");
-  l.rel = "stylesheet"; l.href = href;
-  document.head.appendChild(l);
-}
-
 export default function MapView({
   postos, onBoundsChange, onDistritoClick, onConcelhoClick,
   mostrarPins, mostrarPinsDistrito, flyRef,
@@ -82,186 +67,179 @@ export default function MapView({
 
   useEffect(() => { cbDistrito.current = onDistritoClick; }, [onDistritoClick]);
   useEffect(() => { cbConcelho.current = onConcelhoClick; }, [onConcelhoClick]);
-  useEffect(() => { mostrarPinsDistritoRef.current = mostrarPinsDistrito; }, [mostrarPinsDistrito]);
+useEffect(() => {
+  if (typeof window === "undefined" || mapRef.current) return;
 
-  useEffect(() => {
-    if (typeof window === "undefined" || mapRef.current) return;
-    const L = require("leaflet");
+  (async () => {
+    const L = (await import("leaflet")).default;
+    await import("leaflet/dist/leaflet.css");
 
-    const map = L.map(containerRef.current!, {
+    if (!containerRef.current) return;
+
+    // ← Verifica se o contentor já tem um mapa inicializado
+    if ((containerRef.current as any)._leaflet_id) return;
+
+    const map = L.map(containerRef.current, {
       zoomControl: true, scrollWheelZoom: true, boxZoom: false, tapTolerance: 15,
     }).setView([39.6, -8.0], 7);
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19, attribution: "© OSM © CARTO",
-    }).addTo(map);
-
-    mapRef.current = map;
-
-    loadLink("https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css");
-    loadLink("https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css");
-    loadScript("https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.min.js")
-      .then(() => {
-        clusterRef.current = (window as any).L.markerClusterGroup({
-          maxClusterRadius: 45, showCoverageOnHover: false, disableClusteringAtZoom: 10,
-          iconCreateFunction: () => L.divIcon({ className: "", html: `<div></div>`, iconSize: [0,0], iconAnchor: [0,0] }),
-        });
-      });
-
-    const sD  = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
-    const sDH = { fillOpacity: 0.2,  weight: 2.2 };
-    const sM  = { color: "#22c55e", weight: 0.8, fillColor: "#22c55e", fillOpacity: 0.03 };
-    const sMH = { fillOpacity: 0.14, weight: 1.4 };
-
-    const distritoLayerMap: Record<string, any> = {};
-    const concelhoLayerMap: Record<string, any> = {};
-
-    // ── DISTRITOS ──
-    fetchGeoJSON(DISTRITOS_URL).then(geojson => {
-      if (!geojson) return;
-      distritosRef.current = L.geoJSON(geojson, {
-        style: () => ({ ...sD }),
-        onEachFeature(feature: any, layer: any) {
-          const nome: string = feature.properties?.name ?? "";
-          const id = getDistritoId(nome);
-          if (id) distritoLayerMap[id] = layer;
-          if (nome) layer.bindTooltip(`<b>${nome}</b>`,
-            { sticky: true, className: "map-tip", direction: "top" });
-          layer.on("mouseover", () => layer.setStyle(sDH));
-          layer.on("mouseout",  () => distritosRef.current?.resetStyle(layer));
-          layer.on("click", (e: any) => {
-            L.DomEvent.stopPropagation(e);
-            if (e.originalEvent?.target)
-              (e.originalEvent.target as HTMLElement).style.outline = "none";
-            map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
-            setTimeout(() => {
-              if (map.getZoom() < 9) map.setZoom(9, { animate: true });
-            }, 350);
-            cbDistrito.current?.(nome, id);
-          });
-        },
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19, attribution: "© OSM © CARTO",
       }).addTo(map);
 
-      if (flyRef) {
-        flyRef.current = {
-          flyToDistrito: (id: string) => {
-            const layer = distritoLayerMap[id];
-            if (layer) {
+      mapRef.current = map;
+	  
+      // Carregar markercluster via import dinâmico
+      await import("leaflet.markercluster");
+      // @ts-ignore
+      clusterRef.current = L.markerClusterGroup({
+        maxClusterRadius: 45, showCoverageOnHover: false, disableClusteringAtZoom: 10,
+        iconCreateFunction: () => L.divIcon({ className: "", html: `<div></div>`, iconSize: [0,0], iconAnchor: [0,0] }),
+      });
+
+      const sD  = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
+      const sDH = { fillOpacity: 0.2,  weight: 2.2 };
+      const sM  = { color: "#22c55e", weight: 0.8, fillColor: "#22c55e", fillOpacity: 0.03 };
+      const sMH = { fillOpacity: 0.14, weight: 1.4 };
+
+      const distritoLayerMap: Record<string, any> = {};
+      const concelhoLayerMap: Record<string, any> = {};
+
+      // ── DISTRITOS ──
+      fetchGeoJSON(DISTRITOS_URL).then(geojson => {
+        if (!geojson) return;
+        distritosRef.current = L.geoJSON(geojson, {
+          style: () => ({ ...sD }),
+          onEachFeature(feature: any, layer: any) {
+            const nome: string = feature.properties?.name ?? "";
+            const id = getDistritoId(nome);
+            if (id) distritoLayerMap[id] = layer;
+            if (nome) layer.bindTooltip(`<b>${nome}</b>`,
+              { sticky: true, className: "map-tip", direction: "top" });
+            layer.on("mouseover", () => layer.setStyle(sDH));
+            layer.on("mouseout",  () => distritosRef.current?.resetStyle(layer));
+            layer.on("click", (e: any) => {
+              L.DomEvent.stopPropagation(e);
+              if (e.originalEvent?.target)
+                (e.originalEvent.target as HTMLElement).style.outline = "none";
               map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
               setTimeout(() => {
                 if (map.getZoom() < 9) map.setZoom(9, { animate: true });
               }, 350);
-            }
+              cbDistrito.current?.(nome, id);
+            });
           },
-          flyToConcelho: (distritoId: string, concelhoNome: string) => {
-            const norm = concelhoNome.toLowerCase()
-              .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
-            const layer = concelhoLayerMap[`${distritoId}_${norm}`];
-            if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
-          },
-        };
-      }
-    });
+        }).addTo(map);
 
-    // ── MUNICÍPIOS ──
-    fetchGeoJSON(MUNICIPIOS_URL).then(geojson => {
-      if (!geojson) return;
-      municipiosRef.current = L.geoJSON(geojson, {
-        style: () => ({ ...sM }),
-        onEachFeature(feature: any, layer: any) {
-          const p        = feature.properties ?? {};
-          const conNome  = (p.con_name ?? p.name ?? "") as string;
-          const disNome  = (p.dis_name ?? "") as string;
-          const disCode  = (p.dis_code ?? "") as string;
-          const distritoId = disCode
-            ? disCodeToDgeg(disCode)
-            : getDistritoId(disNome) ?? "";
-
-          if (distritoId && conNome) {
-            const norm = conNome.toLowerCase()
-              .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
-            concelhoLayerMap[`${distritoId}_${norm}`] = layer;
-          }
-
-          if (conNome) layer.bindTooltip(
-            `<b>${conNome}</b>${disNome ? ` · ${disNome}` : ""}`,
-            { sticky: true, className: "map-tip", direction: "top" }
-          );
-          layer.on("mouseover", () => layer.setStyle(sMH));
-          layer.on("mouseout",  () => municipiosRef.current?.resetStyle(layer));
-          layer.on("click", (e: any) => {
-            L.DomEvent.stopPropagation(e);
-            if (e.originalEvent?.target)
-              (e.originalEvent.target as HTMLElement).style.outline = "none";
-            map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
-            if (distritoId && conNome) cbConcelho.current?.(distritoId, conNome);
-          });
-        },
+        if (flyRef) {
+          flyRef.current = {
+            flyToDistrito: (id: string) => {
+              const layer = distritoLayerMap[id];
+              if (layer) {
+                map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
+                setTimeout(() => {
+                  if (map.getZoom() < 9) map.setZoom(9, { animate: true });
+                }, 350);
+              }
+            },
+            flyToConcelho: (distritoId: string, concelhoNome: string) => {
+              const norm = concelhoNome.toLowerCase()
+                .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
+              const layer = concelhoLayerMap[`${distritoId}_${norm}`];
+              if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
+            },
+          };
+        }
       });
 
-      if (flyRef) {
-        const prev = flyRef.current;
-        flyRef.current = {
-          flyToDistrito: prev?.flyToDistrito ?? (() => {}),
-          flyToConcelho: (distritoId: string, concelhoNome: string) => {
-            const norm = concelhoNome.toLowerCase()
-              .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
-            const layer = concelhoLayerMap[`${distritoId}_${norm}`];
-            if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
+      // ── MUNICÍPIOS ──
+      fetchGeoJSON(MUNICIPIOS_URL).then(geojson => {
+        if (!geojson) return;
+        municipiosRef.current = L.geoJSON(geojson, {
+          style: () => ({ ...sM }),
+          onEachFeature(feature: any, layer: any) {
+            const p        = feature.properties ?? {};
+            const conNome  = (p.con_name ?? p.name ?? "") as string;
+            const disNome  = (p.dis_name ?? "") as string;
+            const disCode  = (p.dis_code ?? "") as string;
+            const distritoId = disCode
+              ? disCodeToDgeg(disCode)
+              : getDistritoId(disNome) ?? "";
+
+            if (distritoId && conNome) {
+              const norm = conNome.toLowerCase()
+                .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
+              concelhoLayerMap[`${distritoId}_${norm}`] = layer;
+            }
+
+            if (conNome) layer.bindTooltip(
+              `<b>${conNome}</b>${disNome ? ` · ${disNome}` : ""}`,
+              { sticky: true, className: "map-tip", direction: "top" }
+            );
+            layer.on("mouseover", () => layer.setStyle(sMH));
+            layer.on("mouseout",  () => municipiosRef.current?.resetStyle(layer));
+            layer.on("click", (e: any) => {
+              L.DomEvent.stopPropagation(e);
+              if (e.originalEvent?.target)
+                (e.originalEvent.target as HTMLElement).style.outline = "none";
+              map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
+              if (distritoId && conNome) cbConcelho.current?.(distritoId, conNome);
+            });
           },
-        };
-      }
+        });
 
-      function syncLayers() {
-        const z = map.getZoom();
-        // Com pins no nível de distrito, mantém sempre o layer de distritos visível
-        if (mostrarPinsDistritoRef.current) {
-          if (municipiosRef.current && map.hasLayer(municipiosRef.current))  map.removeLayer(municipiosRef.current);
-          if (distritosRef.current  && !map.hasLayer(distritosRef.current))  map.addLayer(distritosRef.current);
-          return;
+        if (flyRef) {
+          const prev = flyRef.current;
+          flyRef.current = {
+            flyToDistrito: prev?.flyToDistrito ?? (() => {}),
+            flyToConcelho: (distritoId: string, concelhoNome: string) => {
+              const norm = concelhoNome.toLowerCase()
+                .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
+              const layer = concelhoLayerMap[`${distritoId}_${norm}`];
+              if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
+            },
+          };
         }
-        if (z >= 9) {
-          if (distritosRef.current  && map.hasLayer(distritosRef.current))  map.removeLayer(distritosRef.current);
-          if (municipiosRef.current && !map.hasLayer(municipiosRef.current)) map.addLayer(municipiosRef.current);
-        } else {
-          if (municipiosRef.current && map.hasLayer(municipiosRef.current))  map.removeLayer(municipiosRef.current);
-          if (distritosRef.current  && !map.hasLayer(distritosRef.current))  map.addLayer(distritosRef.current);
-        }
-      }
-      map.on("zoomend", syncLayers);
-    });
 
-    map.on("moveend", () => {
-      if (!onBoundsChange) return;
-      const b = map.getBounds();
-      onBoundsChange(`${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`);
-    });
+        function syncLayers() {
+          const z = map.getZoom();
+          if (mostrarPinsDistritoRef.current) {
+            if (municipiosRef.current && map.hasLayer(municipiosRef.current))  map.removeLayer(municipiosRef.current);
+            if (distritosRef.current  && !map.hasLayer(distritosRef.current))  map.addLayer(distritosRef.current);
+            return;
+          }
+          if (z >= 9) {
+            if (distritosRef.current  && map.hasLayer(distritosRef.current))  map.removeLayer(distritosRef.current);
+            if (municipiosRef.current && !map.hasLayer(municipiosRef.current)) map.addLayer(municipiosRef.current);
+          } else {
+            if (municipiosRef.current && map.hasLayer(municipiosRef.current))  map.removeLayer(municipiosRef.current);
+            if (distritosRef.current  && !map.hasLayer(distritosRef.current))  map.addLayer(distritosRef.current);
+          }
+        }
+        map.on("zoomend", syncLayers);
+      });
+
+      map.on("moveend", () => {
+        if (!onBoundsChange) return;
+        const b = map.getBounds();
+        onBoundsChange(`${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`);
+      });
+    })();
   }, []);
 
   // ── Pins ──
   useEffect(() => {
-    if (!mapRef.current) return;
-    const L = require("leaflet");
-    if (clusterRef.current && mapRef.current.hasLayer(clusterRef.current))
-      mapRef.current.removeLayer(clusterRef.current);
-    if (!mostrarPins || postos.length === 0) return;
+    if (!mapRef.current || !clusterRef.current) return;
 
-    function tryAdd(retries = 14) {
-      if (!clusterRef.current) {
-        if (retries > 0) setTimeout(() => tryAdd(retries - 1), 300);
-        return;
-      }
+    (async () => {
+      const L = (await import("leaflet")).default;
+
+      if (mapRef.current.hasLayer(clusterRef.current))
+        mapRef.current.removeLayer(clusterRef.current);
+      if (!mostrarPins || postos.length === 0) return;
+
       clusterRef.current.clearLayers();
       const bounds: [number, number][] = [];
-	  
-	  const PT_BOUNDS = { minLat: 29.0, maxLat: 42.2, minLng: -31.3, maxLng: -6.1 };
-
-	  function dentroDePortugal(lat: number, lng: number): boolean {
-	  return (
-		lat >= PT_BOUNDS.minLat && lat <= PT_BOUNDS.maxLat &&
-		lng >= PT_BOUNDS.minLng && lng <= PT_BOUNDS.maxLng
-	  );
-	}
 
       postos.forEach(posto => {
         if (posto.lat === null || posto.lng === null) return;
@@ -316,11 +294,10 @@ export default function MapView({
 
       mapRef.current.addLayer(clusterRef.current);
       if (bounds.length) mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
-    }
-    tryAdd();
+    })();
   }, [postos, mostrarPins]);
 
   return (
-    <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+    <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: "400px" }} />
   );
 }
