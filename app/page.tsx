@@ -1,7 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
-import { getPostos, getMunicipios, type Posto } from "@/lib/dgeg";
+import { getMunicipios, type Posto } from "@/lib/dgeg";
 import FilterPanel, { type FilterValues } from "@/components/FilterPanel";
 import PostoCard from "@/components/PostoCard";
 import { useTheme } from "@/components/ThemeProvider";
@@ -25,24 +25,24 @@ const GASOLINA_TIPOS = [
 ];
 
 const DISTRITO_BOUNDS: Record<string, [number, number, number, number]> = {
-  "1":  [40.5, 41.1, -8.9, -7.8],  // Aveiro
-  "2":  [37.6, 38.4, -8.4, -7.2],  // Beja
-  "3":  [41.2, 41.9, -8.8, -7.8],  // Braga
-  "4":  [41.5, 42.2, -7.3, -6.2],  // Bragança
-  "5":  [39.6, 40.4, -8.1, -6.8],  // Castelo Branco
-  "6":  [39.8, 40.5, -8.6, -7.7],  // Coimbra
-  "7":  [38.0, 38.9, -8.2, -7.0],  // Évora
-  "8":  [36.9, 37.6, -8.9, -7.4],  // Faro
-  "9":  [40.2, 41.0, -7.8, -6.8],  // Guarda
-  "10": [39.4, 40.1, -9.0, -8.2],  // Leiria
-  "11": [38.6, 39.4, -9.5, -8.8],  // Lisboa
-  "12": [39.0, 39.6, -8.1, -7.2],  // Portalegre
-  "13": [40.9, 41.6, -8.8, -7.7],  // Porto
-  "14": [38.8, 39.7, -9.0, -7.9],  // Santarém
-  "15": [37.9, 38.7, -9.1, -8.4],  // Setúbal
-  "16": [41.6, 42.2, -8.9, -8.0],  // Viana do Castelo
-  "17": [41.3, 42.0, -8.0, -7.1],  // Vila Real
-  "18": [40.6, 41.2, -8.2, -7.3],  // Viseu
+  "1":  [40.5, 41.1, -8.9, -7.8],
+  "2":  [37.6, 38.4, -8.4, -7.2],
+  "3":  [41.2, 41.9, -8.8, -7.8],
+  "4":  [41.5, 42.2, -7.3, -6.2],
+  "5":  [39.6, 40.4, -8.1, -6.8],
+  "6":  [39.8, 40.5, -8.6, -7.7],
+  "7":  [38.0, 38.9, -8.2, -7.0],
+  "8":  [36.9, 37.6, -8.9, -7.4],
+  "9":  [40.2, 41.0, -7.8, -6.8],
+  "10": [39.4, 40.1, -9.0, -8.2],
+  "11": [38.6, 39.4, -9.5, -8.8],
+  "12": [39.0, 39.6, -8.1, -7.2],
+  "13": [40.9, 41.6, -8.8, -7.7],
+  "14": [38.8, 39.7, -9.0, -7.9],
+  "15": [37.9, 38.7, -9.1, -8.4],
+  "16": [41.6, 42.2, -8.9, -8.0],
+  "17": [41.3, 42.0, -8.0, -7.1],
+  "18": [40.6, 41.2, -8.2, -7.3],
 };
 
 const GASOLEO_EXCLUIR = /(agr[ií]col|biodiesel|b[0-9]+|colorid|aditivad)/i;
@@ -53,7 +53,6 @@ function precoRelevante(posto: Posto, tipo: "gasolina" | "gasoleo" | "gpl"): num
   const tipos =
     tipo === "gasolina" ? GASOLINA_TIPOS :
     tipo === "gasoleo"  ? GASOLEO_TIPOS  : GPL_TIPOS;
-
   const comb = posto.combustiveis?.find((c: any) => {
     const t = c.tipo?.toLowerCase() ?? "";
     if (tipo === "gasoleo" && GASOLEO_EXCLUIR.test(t)) return false;
@@ -98,31 +97,36 @@ export default function Home() {
 
     setLoading(true); setError("");
     try {
-      const data = await getPostos({
-        fuelId:      f.fuelId,
-        idDistrito:  f.idDistrito  || undefined,
-        idMunicipio: f.idMunicipio || undefined,
-        marcaId:     f.marcaId     || undefined,
-        search:      f.search      || undefined,
+      const params = new URLSearchParams();
+      params.set("fuelId", f.fuelId || "3201");
+      if (f.idDistrito)  params.set("idDistrito",  f.idDistrito);
+      if (f.idMunicipio) params.set("idMunicipio", f.idMunicipio);
+      if (f.marcaId)     params.set("marcaId",     f.marcaId);
+      if (f.search)      params.set("search",      f.search);
+
+      const res  = await fetch(`/api/combustivel?${params}`);
+      const json = await res.json();
+
+      if (!json.ok) throw new Error(json.error ?? "Erro desconhecido");
+
+      const filtered = (json.data as Posto[]).filter(p => {
+        if (
+          p.marca &&
+          p.marca.toLowerCase() !== "genérico" &&
+          p.marca.toLowerCase() !== "generico" &&
+          (p.preco === null || p.preco > 0)
+        ) {
+          if (f.idDistrito && p.lat !== null && p.lng !== null) {
+            const db = DISTRITO_BOUNDS[f.idDistrito];
+            if (db && (p.lat < db[0] || p.lat > db[1] || p.lng < db[2] || p.lng > db[3])) {
+              return false;
+            }
+          }
+          return true;
+        }
+        return false;
       });
-const filtered = (data as Posto[]).filter(p => {
-  if (
-    p.marca &&
-    p.marca.toLowerCase() !== "genérico" &&
-    p.marca.toLowerCase() !== "generico" &&
-    (p.preco === null || p.preco > 0)
-  ) {
-    // Filtro de coords por distrito ativo
-    if (f.idDistrito && p.lat !== null && p.lng !== null) {
-      const db = DISTRITO_BOUNDS[f.idDistrito];
-      if (db && (p.lat < db[0] || p.lat > db[1] || p.lng < db[2] || p.lng > db[3])) {
-        return false; // coords fora do distrito — descarta
-      }
-    }
-    return true;
-  }
-  return false;
-});
+
       setPostos(filtered);
     } catch (e) { setError(String(e)); setPostos([]); }
     finally { setLoading(false); }
@@ -258,12 +262,8 @@ const filtered = (data as Posto[]).filter(p => {
             height: 55vh !important;
             order: -1;
           }
-          .lista-col {
-            order: 1;
-          }
-          .filtros-col {
-            order: 2;
-          }
+          .lista-col { order: 1; }
+          .filtros-col { order: 2; }
         }
       `}</style>
 
