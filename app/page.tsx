@@ -23,6 +23,28 @@ const GASOLINA_TIPOS = [
   "gasolina simples 95", "gasolina especial 95", "gasolina especial",
   "gasolina simples", "gasolina 98", "gasolina",
 ];
+
+const DISTRITO_BOUNDS: Record<string, [number, number, number, number]> = {
+  "1":  [40.5, 41.1, -8.9, -7.8],  // Aveiro
+  "2":  [37.6, 38.4, -8.4, -7.2],  // Beja
+  "3":  [41.2, 41.9, -8.8, -7.8],  // Braga
+  "4":  [41.5, 42.2, -7.3, -6.2],  // Bragança
+  "5":  [39.6, 40.4, -8.1, -6.8],  // Castelo Branco
+  "6":  [39.8, 40.5, -8.6, -7.7],  // Coimbra
+  "7":  [38.0, 38.9, -8.2, -7.0],  // Évora
+  "8":  [36.9, 37.6, -8.9, -7.4],  // Faro
+  "9":  [40.2, 41.0, -7.8, -6.8],  // Guarda
+  "10": [39.4, 40.1, -9.0, -8.2],  // Leiria
+  "11": [38.6, 39.4, -9.5, -8.8],  // Lisboa
+  "12": [39.0, 39.6, -8.1, -7.2],  // Portalegre
+  "13": [40.9, 41.6, -8.8, -7.7],  // Porto
+  "14": [38.8, 39.7, -9.0, -7.9],  // Santarém
+  "15": [37.9, 38.7, -9.1, -8.4],  // Setúbal
+  "16": [41.6, 42.2, -8.9, -8.0],  // Viana do Castelo
+  "17": [41.3, 42.0, -8.0, -7.1],  // Vila Real
+  "18": [40.6, 41.2, -8.2, -7.3],  // Viseu
+};
+
 const GASOLEO_EXCLUIR = /(agr[ií]col|biodiesel|b[0-9]+|colorid|aditivad)/i;
 const GASOLEO_TIPOS   = ["gasóleo simples", "gasoleo simples", "gasóleo especial", "gasoleo especial", "gasóleo", "gasoleo"];
 const GPL_TIPOS       = ["gpl"];
@@ -83,13 +105,24 @@ export default function Home() {
         marcaId:     f.marcaId     || undefined,
         search:      f.search      || undefined,
       });
-      // Filtra postos genéricos e com preço 0
-      const filtered = (data as Posto[]).filter(p =>
-        p.marca &&
-        p.marca.toLowerCase() !== "genérico" &&
-        p.marca.toLowerCase() !== "generico" &&
-        (p.preco === null || p.preco > 0)
-      );
+const filtered = (data as Posto[]).filter(p => {
+  if (
+    p.marca &&
+    p.marca.toLowerCase() !== "genérico" &&
+    p.marca.toLowerCase() !== "generico" &&
+    (p.preco === null || p.preco > 0)
+  ) {
+    // Filtro de coords por distrito ativo
+    if (f.idDistrito && p.lat !== null && p.lng !== null) {
+      const db = DISTRITO_BOUNDS[f.idDistrito];
+      if (db && (p.lat < db[0] || p.lat > db[1] || p.lng < db[2] || p.lng > db[3])) {
+        return false; // coords fora do distrito — descarta
+      }
+    }
+    return true;
+  }
+  return false;
+});
       setPostos(filtered);
     } catch (e) { setError(String(e)); setPostos([]); }
     finally { setLoading(false); }
@@ -139,7 +172,6 @@ export default function Home() {
     fetchPostos(newF);
   }, [fetchPostos, fuelId]);
 
-  // onChange — só actualiza estado e fly no mapa, SEM fetch
   const handleFilterChange = useCallback((f: FilterValues) => {
     const distritoMudou = f.idDistrito  !== filtersRef.current.idDistrito;
     const concelhoMudou = f.idMunicipio !== filtersRef.current.idMunicipio;
@@ -158,19 +190,16 @@ export default function Home() {
     }
   }, []);
 
-  // onSearch — dispara fetch
   const handleSearch = useCallback((f: FilterValues) => {
     filtersRef.current = f;
     fetchPostos(f);
   }, [fetchPostos]);
 
-  // Tipo activo derivado da ordenação
   const tipoAtivo: "gasolina" | "gasoleo" | "gpl" | null =
     ordenacao === "gasolina_asc" ? "gasolina" :
     ordenacao === "gasoleo_asc"  ? "gasoleo"  :
     ordenacao === "gpl_asc"      ? "gpl"      : null;
 
-  // GPL: remove postos sem GPL; outros: mostra todos
   const postosVisiveis = tipoAtivo === "gpl"
     ? postos.filter(p => temCombustivel(p, "gpl"))
     : postos;
@@ -217,6 +246,26 @@ export default function Home() {
 
   return (
     <div style={{ minHeight:"100vh", background:"var(--bg)" }}>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .main-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .mapa-col {
+            position: relative !important;
+            top: unset !important;
+            height: 55vh !important;
+            order: -1;
+          }
+          .lista-col {
+            order: 1;
+          }
+          .filtros-col {
+            order: 2;
+          }
+        }
+      `}</style>
 
       {/* ── TOPBAR ── */}
       <header style={{
@@ -285,8 +334,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ── MAIN — 3 colunas ── */}
-      <div style={{
+      {/* ── MAIN ── */}
+      <div className="main-grid" style={{
         maxWidth:1600, margin:"0 auto", padding:"1rem 1.25rem",
         display:"grid",
         gridTemplateColumns:"280px 540px 1fr",
@@ -295,21 +344,22 @@ export default function Home() {
       }}>
 
         {/* Col 1 — SIDEBAR */}
-        <FilterPanel
-          onChange={handleFilterChange}
-          onSearch={handleSearch}
-          loading={loading}
-          total={postosVisiveis.length}
-          currentFuelId={fuelId}
-          distritoAtivo={distritoAtivo}
-          municipioAtivo={municipioAtivo}
-          cheapestPrice={cheapestPrice}
-        />
+        <div className="filtros-col">
+          <FilterPanel
+            onChange={handleFilterChange}
+            onSearch={handleSearch}
+            loading={loading}
+            total={postosVisiveis.length}
+            currentFuelId={fuelId}
+            distritoAtivo={distritoAtivo}
+            municipioAtivo={municipioAtivo}
+            cheapestPrice={cheapestPrice}
+          />
+        </div>
 
         {/* Col 2 — LISTA */}
-        <div style={{ display:"flex", flexDirection:"column", gap:"0.55rem", minWidth:0 }}>
+        <div className="lista-col" style={{ display:"flex", flexDirection:"column", gap:"0.55rem", minWidth:0 }}>
 
-          {/* Status */}
           <div className="card" style={{ padding:"0.45rem 0.875rem",
             display:"flex", alignItems:"center", gap:"0.5rem" }}>
             <span style={{
@@ -321,7 +371,6 @@ export default function Home() {
             </span>
           </div>
 
-          {/* Placeholder */}
           {!distritoAtivo && !loading && postos.length === 0 && !error && (
             <div className="card" style={{ padding:"2.5rem 1.5rem", textAlign:"center",
               display:"flex", flexDirection:"column", alignItems:"center", gap:"0.6rem" }}>
@@ -337,7 +386,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Hint: distrito sem resultados */}
           {distritoAtivo && !loading && postos.length === 0 && !error && (
             <div className="card" style={{ padding:"1.5rem", textAlign:"center",
               display:"flex", flexDirection:"column", alignItems:"center", gap:"0.4rem" }}>
@@ -348,11 +396,8 @@ export default function Home() {
             </div>
           )}
 
-          {/* Stats + botões de ordenação */}
           {postos.length > 0 && (
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"0.4rem" }}>
-
-              {/* Stats */}
               <div style={{ display:"flex", gap:"0.35rem" }}>
                 {[
                   { l:"Mín",   v: minP ? minP.toFixed(3) : "—" },
@@ -368,8 +413,6 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-
-              {/* Botões de ordenação */}
               <div style={{ display:"flex", gap:"0.35rem" }}>
                 {SORT_BTNS.map(opt => {
                   const active = ordenacao === opt.value;
@@ -429,7 +472,7 @@ export default function Home() {
         </div>
 
         {/* Col 3 — MAPA */}
-        <div className="card" style={{
+        <div className="card mapa-col" style={{
           overflow:"hidden", position:"sticky",
           top: HEADER_H + 8,
           height:`calc(100vh - ${HEADER_H + 24}px)`,

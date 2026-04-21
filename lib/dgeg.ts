@@ -31,6 +31,27 @@ export const FUELS = [
   { id: "2150", label: "Gasóleo colorido" },
 ];
 
+const DISTRITO_BOUNDS: Record<string, [number, number, number, number]> = {
+  "1":  [40.5, 41.1, -8.9, -7.8],  // Aveiro
+  "2":  [37.6, 38.4, -8.4, -7.2],  // Beja
+  "3":  [41.2, 41.9, -8.8, -7.8],  // Braga
+  "4":  [41.5, 42.2, -7.3, -6.2],  // Bragança
+  "5":  [39.6, 40.4, -8.1, -6.8],  // Castelo Branco
+  "6":  [39.8, 40.5, -8.6, -7.7],  // Coimbra
+  "7":  [38.0, 38.9, -8.2, -7.0],  // Évora
+  "8":  [36.9, 37.6, -8.9, -7.4],  // Faro
+  "9":  [40.2, 41.0, -7.8, -6.8],  // Guarda
+  "10": [39.4, 40.1, -9.0, -8.2],  // Leiria
+  "11": [38.6, 39.4, -9.5, -8.8],  // Lisboa
+  "12": [39.0, 39.6, -8.1, -7.2],  // Portalegre
+  "13": [40.9, 41.6, -8.8, -7.7],  // Porto
+  "14": [38.8, 39.7, -9.0, -7.9],  // Santarém
+  "15": [37.9, 38.7, -9.1, -8.4],  // Setúbal
+  "16": [41.6, 42.2, -8.9, -8.0],  // Viana do Castelo
+  "17": [41.3, 42.0, -8.0, -7.1],  // Vila Real
+  "18": [40.6, 41.2, -8.2, -7.3],  // Viseu
+};
+
 export interface Distrito  { Id: number; Descritivo: string; }
 export interface Municipio { Id: number; Descritivo: string; IdDistrito: number; }
 

@@ -18,6 +18,29 @@ interface Props {
 const DISTRITOS_URL  = "/distritos.geojson";
 const MUNICIPIOS_URL = "/municipios.geojson";
 
+const PT_BOUNDS = { minLat: 29.0, maxLat: 42.2, minLng: -31.3, maxLng: -6.1 };
+
+const DISTRITO_BOUNDS: Record<string, [number, number, number, number]> = {
+  "1":  [40.5, 41.1, -8.9, -7.8],
+  "2":  [37.6, 38.4, -8.4, -7.2],
+  "3":  [41.2, 41.9, -8.8, -7.8],
+  "4":  [41.5, 42.2, -7.3, -6.2],
+  "5":  [39.6, 40.4, -8.1, -6.8],
+  "6":  [39.8, 40.5, -8.6, -7.7],
+  "7":  [38.0, 38.9, -8.2, -7.0],
+  "8":  [36.9, 37.6, -8.9, -7.4],
+  "9":  [40.2, 41.0, -7.8, -6.8],
+  "10": [39.4, 40.1, -9.0, -8.2],
+  "11": [38.6, 39.4, -9.5, -8.8],
+  "12": [39.0, 39.6, -8.1, -7.2],
+  "13": [40.9, 41.6, -8.8, -7.7],
+  "14": [38.8, 39.7, -9.0, -7.9],
+  "15": [37.9, 38.7, -9.1, -8.4],
+  "16": [41.6, 42.2, -8.9, -8.0],
+  "17": [41.3, 42.0, -8.0, -7.1],
+  "18": [40.6, 41.2, -8.2, -7.3],
+};
+
 const NOME_PARA_ID: Record<string, string> = {
   "aveiro":"1","beja":"2","braga":"3","bragança":"4","braganca":"4",
   "castelo branco":"5","coimbra":"6","évora":"7","evora":"7","faro":"8",
@@ -40,6 +63,14 @@ function getDistritoId(nome: string): string | undefined {
     const kn = k.normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
     if (norm.startsWith(kn + " ") || norm.startsWith(kn + ",")) return v;
   }
+}
+
+function coordsDentroDeDistrito(lat: number, lng: number, distritoNome: string): boolean {
+  const id = getDistritoId(distritoNome);
+  if (!id) return true; // sem id conhecido, deixa passar
+  const db = DISTRITO_BOUNDS[id];
+  if (!db) return true; // Açores/Madeira sem bounds definidos, deixa passar
+  return lat >= db[0] && lat <= db[1] && lng >= db[2] && lng <= db[3];
 }
 
 async function fetchGeoJSON(url: string) {
@@ -67,29 +98,28 @@ export default function MapView({
 
   useEffect(() => { cbDistrito.current = onDistritoClick; }, [onDistritoClick]);
   useEffect(() => { cbConcelho.current = onConcelhoClick; }, [onConcelhoClick]);
-useEffect(() => {
-  if (typeof window === "undefined" || mapRef.current) return;
+  useEffect(() => { mostrarPinsDistritoRef.current = mostrarPinsDistrito; }, [mostrarPinsDistrito]);
 
-  (async () => {
-    const L = (await import("leaflet")).default;
-    await import("leaflet/dist/leaflet.css");
+  useEffect(() => {
+    if (typeof window === "undefined" || mapRef.current) return;
 
-    if (!containerRef.current) return;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      await import("leaflet/dist/leaflet.css");
 
-    // ← Verifica se o contentor já tem um mapa inicializado
-    if ((containerRef.current as any)._leaflet_id) return;
+      if (!containerRef.current) return;
+      if ((containerRef.current as any)._leaflet_id) return;
 
-    const map = L.map(containerRef.current, {
-      zoomControl: true, scrollWheelZoom: true, boxZoom: false, tapTolerance: 15,
-    }).setView([39.6, -8.0], 7);
+      const map = L.map(containerRef.current, {
+        zoomControl: true, scrollWheelZoom: true, boxZoom: false, tapTolerance: 15,
+      }).setView([39.6, -8.0], 7);
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19, attribution: "© OSM © CARTO",
       }).addTo(map);
 
       mapRef.current = map;
-	  
-      // Carregar markercluster via import dinâmico
+
       await import("leaflet.markercluster");
       // @ts-ignore
       clusterRef.current = L.markerClusterGroup({
@@ -243,11 +273,22 @@ useEffect(() => {
 
       postos.forEach(posto => {
         if (posto.lat === null || posto.lng === null) return;
+
+        // Filtra fora de Portugal
+        if (
+          posto.lat < PT_BOUNDS.minLat || posto.lat > PT_BOUNDS.maxLat ||
+          posto.lng < PT_BOUNDS.minLng || posto.lng > PT_BOUNDS.maxLng
+        ) return;
+
+        // Filtra coords que não correspondem ao distrito do posto
+        if (posto.distrito && !coordsDentroDeDistrito(posto.lat, posto.lng, posto.distrito)) return;
+
         const icon = L.divIcon({
           className: "",
           html: `<div style="width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
           iconSize: [14, 14], iconAnchor: [7, 7],
         });
+
         const combsHtml = posto.combustiveis.map((c: any) => `
           <div style="display:flex;justify-content:space-between;gap:1rem;font-size:0.72rem">
             <span style="color:#888">${c.tipo}</span>
