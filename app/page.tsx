@@ -6,6 +6,7 @@ import FilterPanel, { type FilterValues } from "@/components/FilterPanel";
 import PostoCard from "@/components/PostoCard";
 import Calculadora from "@/components/Calculadora";
 import { useTheme } from "@/components/ThemeProvider";
+import { DISTRITO_BOUNDS } from "@/lib/bounds";
 
 const MapView = dynamic(() => import("@/components/MapView"), {
   ssr: false,
@@ -24,27 +25,6 @@ const GASOLINA_TIPOS = [
   "gasolina simples 95", "gasolina especial 95", "gasolina especial",
   "gasolina simples", "gasolina 98", "gasolina",
 ];
-
-const DISTRITO_BOUNDS: Record<string, [number, number, number, number]> = {
-  "1":  [40.5, 41.1, -8.9, -7.8],
-  "2":  [37.6, 38.4, -8.4, -7.2],
-  "3":  [41.2, 41.9, -8.8, -7.8],
-  "4":  [41.5, 42.2, -7.3, -6.2],
-  "5":  [39.6, 40.4, -8.1, -6.8],
-  "6":  [39.8, 40.5, -8.6, -7.7],
-  "7":  [38.0, 38.9, -8.2, -7.0],
-  "8":  [36.9, 37.6, -8.9, -7.4],
-  "9":  [40.2, 41.0, -7.8, -6.8],
-  "10": [39.4, 40.1, -9.0, -8.2],
-  "11": [38.6, 39.4, -9.5, -8.8],
-  "12": [39.0, 39.6, -8.1, -7.2],
-  "13": [40.9, 41.6, -8.8, -7.7],
-  "14": [38.8, 39.7, -9.0, -7.9],
-  "15": [37.9, 38.7, -9.1, -8.4],
-  "16": [41.6, 42.2, -8.9, -8.0],
-  "17": [41.3, 42.0, -8.0, -7.1],
-  "18": [40.6, 41.2, -8.2, -7.3],
-};
 
 const GASOLEO_EXCLUIR = /(agr[ií]col|biodiesel|b[0-9]+|colorid|aditivad)/i;
 const GASOLEO_TIPOS   = ["gasóleo simples", "gasoleo simples", "gasóleo especial", "gasoleo especial", "gasóleo", "gasoleo"];
@@ -120,25 +100,27 @@ export default function Home() {
 
       if (!json.ok) throw new Error(json.error ?? "Erro desconhecido");
 
-      const filtered = (json.data as Posto[]).filter(p => {
-        if (
-          p.marca &&
-          p.marca.toLowerCase() !== "genérico" &&
-          p.marca.toLowerCase() !== "generico" &&
-          (p.preco === null || p.preco > 0)
-        ) {
-          if (f.idDistrito && p.lat !== null && p.lng !== null) {
-            const db = DISTRITO_BOUNDS[f.idDistrito];
-            if (db && (p.lat < db[0] || p.lat > db[1] || p.lng < db[2] || p.lng > db[3])) {
-              return false;
-            }
-          }
-          return true;
-        }
-        return false;
-      });
+const filtered = (json.data as Posto[]).filter(p => {
+  if (!p.marca || p.marca.toLowerCase() === "genérico" || p.marca.toLowerCase() === "generico") {
+    console.log("❌ marca:", p.nome, p.marca);
+    return false;
+  }
+  if (p.preco !== null && p.preco <= 0) {
+    console.log("❌ preço:", p.nome, p.preco);
+    return false;
+  }
+  if (f.idDistrito && p.lat !== null && p.lng !== null) {
+    const db = DISTRITO_BOUNDS[f.idDistrito];
+    if (db && (p.lat < db[0] || p.lat > db[1] || p.lng < db[2] || p.lng > db[3])) {
+      console.log("❌ bounds:", p.nome, p.lat, p.lng, "bound:", db);
+      return false;
+    }
+  }
+  return true;
+});
+console.log("✅ total após filtro:", filtered.length);
 
-      setPostos(filtered);
+setPostos(filtered);
     } catch (e) { setError(String(e)); setPostos([]); }
     finally { setLoading(false); }
   }, []);
@@ -406,13 +388,17 @@ export default function Home() {
   padding:"0.35rem 0.6rem", cursor:"pointer",
   display:"flex", alignItems:"center",
 }}>
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="4" y="2" width="16" height="20" rx="2"/>
-    <line x1="8" y1="6" x2="16" y2="6"/>
-    <line x1="8" y1="10" x2="16" y2="10"/>
-    <line x1="8" y1="14" x2="12" y2="14"/>
-  </svg>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <rect x="4" y="2" width="16" height="20" rx="2"/>
+  <rect x="7" y="5" width="10" height="4" rx="1"/>
+  <circle cx="8"  cy="14" r="0.8" fill="currentColor"/>
+  <circle cx="12" cy="14" r="0.8" fill="currentColor"/>
+  <circle cx="16" cy="14" r="0.8" fill="currentColor"/>
+  <circle cx="8"  cy="18" r="0.8" fill="currentColor"/>
+  <circle cx="12" cy="18" r="0.8" fill="currentColor"/>
+  <circle cx="16" cy="18" r="0.8" fill="currentColor"/>
+</svg>
 </button>
 
             {/* Doar */}
@@ -442,7 +428,12 @@ export default function Home() {
       }}>
 
         {/* Col 1 — SIDEBAR filtros */}
-        <div className="filtros-col">
+<div className="filtros-col" style={{
+  position: "sticky",
+  top: HEADER_H + 8,
+  maxHeight: `calc(100vh - ${HEADER_H + 24}px)`,
+  overflowY: "auto",
+}}>
           <FilterPanel
             onChange={handleFilterChange}
             onSearch={handleSearch}
@@ -496,24 +487,6 @@ export default function Home() {
 
           {postos.length > 0 && (
             <div style={{ display:"flex", flexDirection:"column", gap:"0.35rem" }}>
-
-              {/* Mín / Média / Máx */}
-              <div style={{ display:"flex", gap:"0.3rem" }}>
-                {[
-                  { l:"Mín",   v: minP ? minP.toFixed(3) : "—", color:"var(--accent)" },
-                  { l:"Média", v: precosVisiveis.length
-                    ? (precosVisiveis.reduce((a,b) => a+b) / precosVisiveis.length).toFixed(3) : "—",
-                    color:"#C8960C" },
-                  { l:"Máx",   v: precosVisiveis.length
-                    ? Math.max(...precosVisiveis).toFixed(3) : "—", color:"#ef4444" },
-                ].map(s => (
-                  <div key={s.l} className="card"
-                    style={{ padding:"0.25rem 0.5rem", textAlign:"center", flex:1 }}>
-                    <p style={{ fontWeight:800, fontSize:"0.75rem", color: s.color }}>{s.v}</p>
-                    <p className="text-muted" style={{ fontSize:"0.5rem", marginTop:1 }}>{s.l}</p>
-                  </div>
-                ))}
-              </div>
 
               {/* Botões ordenação */}
               <div style={{ display:"flex", gap:"0.3rem" }}>

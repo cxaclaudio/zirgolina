@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import type { Posto } from "@/lib/dgeg";
+import { DISTRITO_BOUNDS } from "@/lib/bounds";
 
 interface Props {
   postos:              Posto[];
@@ -20,27 +21,6 @@ const MUNICIPIOS_URL = "/municipios.geojson";
 
 const PT_BOUNDS = { minLat: 29.0, maxLat: 42.2, minLng: -31.3, maxLng: -6.1 };
 
-const DISTRITO_BOUNDS: Record<string, [number, number, number, number]> = {
-  "1":  [40.5, 41.1, -8.9, -7.8],
-  "2":  [37.6, 38.4, -8.4, -7.2],
-  "3":  [41.2, 41.9, -8.8, -7.8],
-  "4":  [41.5, 42.2, -7.3, -6.2],
-  "5":  [39.6, 40.4, -8.1, -6.8],
-  "6":  [39.8, 40.5, -8.6, -7.7],
-  "7":  [38.0, 38.9, -8.2, -7.0],
-  "8":  [36.9, 37.6, -8.9, -7.4],
-  "9":  [40.2, 41.0, -7.8, -6.8],
-  "10": [39.4, 40.1, -9.0, -8.2],
-  "11": [38.6, 39.4, -9.5, -8.8],
-  "12": [39.0, 39.6, -8.1, -7.2],
-  "13": [40.9, 41.6, -8.8, -7.7],
-  "14": [38.8, 39.7, -9.0, -7.9],
-  "15": [37.9, 38.7, -9.1, -8.4],
-  "16": [41.6, 42.2, -8.9, -8.0],
-  "17": [41.3, 42.0, -8.0, -7.1],
-  "18": [40.6, 41.2, -8.2, -7.3],
-};
-
 const NOME_PARA_ID: Record<string, string> = {
   "aveiro":"1","beja":"2","braga":"3","bragança":"4","braganca":"4",
   "castelo branco":"5","coimbra":"6","évora":"7","evora":"7","faro":"8",
@@ -49,6 +29,30 @@ const NOME_PARA_ID: Record<string, string> = {
   "viana do castelo":"16","vila real":"17","viseu":"18",
   "açores":"20","acores":"20","madeira":"21",
 };
+
+const MARCA_CORES: Record<string, string> = {
+  "ALVES BANDEIRA": "#1D6FA4",
+  "AUCHAN":         "#E2001A",
+  "BP":             "#006F3C",
+  "CEPSA":          "#E2001A",
+  "GALP":           "#FF6B00",
+  "INTERMARCHÉ":    "#888888",
+  "LECLERC":        "#1D6FA4",
+  "MOEVE":          "#1D6FA4",
+  "NOVA":           "#1D6FA4",
+  "OZ ENERGIA":     "#1D6FA4",
+  "PINGO DOCE":     "#006F3C",
+  "PRIO":           "#1D6FA4",
+  "REPSOL":         "#C45000",
+  "SHELL":          "#C8960C",
+};
+
+function getMarcaCor(marca: string): string {
+  const key = Object.keys(MARCA_CORES).find(k =>
+    marca.toUpperCase().includes(k)
+  );
+  return key ? MARCA_CORES[key] : "#22c55e";
+}
 
 function disCodeToDgeg(disCode: string) { return String(parseInt(disCode, 10)); }
 
@@ -287,16 +291,18 @@ export default function MapView({
 
           if (posto.distrito && !coordsDentroDeDistrito(posto.lat, posto.lng, posto.distrito)) return;
 
+          const marcaCor = getMarcaCor(posto.marca ?? "");
+
           const icon = L.divIcon({
             className: "",
-            html: `<div style="width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
+            html: `<div style="width:14px;height:14px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
             iconSize: [14, 14], iconAnchor: [7, 7],
           });
 
           const combsHtml = posto.combustiveis.map((c: any) => `
             <div style="display:flex;justify-content:space-between;gap:1rem;font-size:0.72rem">
               <span style="color:#888">${c.tipo}</span>
-              <b>${c.texto}</b>
+              <b style="color:#555">${c.texto}</b>
             </div>`
           ).join("") || `<span style="font-size:0.72rem;color:#888">Sem preços</span>`;
 
@@ -305,8 +311,8 @@ export default function MapView({
               .bindPopup(`
 <div style="min-width:180px">
   <p style="font-weight:700;margin:0 0 2px">
-    <span style="color:var(--accent)">${posto.marca}</span>
-    <span style="color:#888;margin:0 0.3rem">|</span>
+    <span style="color:${marcaCor}">${posto.marca}</span>
+    <span style="color:#aaa;margin:0 0.3rem">|</span>
     ${posto.nome}
   </p>
   <p style="font-size:0.72rem;color:#888;margin:0 0 6px">${posto.localidade}</p>

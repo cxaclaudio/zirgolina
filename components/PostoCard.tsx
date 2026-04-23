@@ -136,7 +136,7 @@ export default function PostoCard({ posto, tipoAtivo }: Props) {
               borderBottom: i < posto.combustiveis.length-1 ? "1px solid var(--border)" : "none",
             }}>
               <span className="text-muted" style={{ fontSize:"0.68rem" }}>{c.tipo}</span>
-              <strong style={{ fontSize:"0.72rem", color:"var(--accent)" }}>{c.texto}</strong>
+			  <strong style={{ fontSize:"0.72rem", color: dark ? "#aaaaaa" : "#555555" }}>{c.texto}</strong>
             </div>
           ))}
         </div>
