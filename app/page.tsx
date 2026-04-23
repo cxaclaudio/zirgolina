@@ -566,33 +566,34 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ── MODAL MAPA (mobile) ── */}
-      {mapaOpen && (
-        <div style={{
-          position:"fixed", inset:0, zIndex:100,
-          background:"var(--bg)", display:"flex", flexDirection:"column",
-        }}>
-          <div style={{
-            display:"flex", alignItems:"center", justifyContent:"space-between",
-            padding:"0 1rem", height:HEADER_H,
-            borderBottom:"1px solid var(--border)", flexShrink:0,
-          }}>
-            <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Mapa</span>
-            <button onClick={() => setMapaOpen(false)} style={{
-              background:"none", border:"none", cursor:"pointer",
-              color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
-            }}>✕</button>
-          </div>
-          <div style={{ flex:1, overflow:"hidden" }}>
-            <MapView
-              key="mobile"
-              {...mapProps}
-              flyRef={mapFlyRefMobile}
-              invalidateRef={mapInvalidateRefMobile}
-            />
-          </div>
-        </div>
-      )}
+{/* ── MODAL MAPA (mobile) — sempre montado no DOM ── */}
+<div style={{
+  position:"fixed", inset:0, zIndex:100,
+  background:"var(--bg)", display:"flex", flexDirection:"column",
+  opacity:        mapaOpen ? 1 : 0,
+  pointerEvents:  mapaOpen ? "auto" : "none",
+  transition:     "opacity 0.15s ease",
+}}>
+  <div style={{
+    display:"flex", alignItems:"center", justifyContent:"space-between",
+    padding:"0 1rem", height:HEADER_H,
+    borderBottom:"1px solid var(--border)", flexShrink:0,
+  }}>
+    <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Mapa</span>
+    <button onClick={() => setMapaOpen(false)} style={{
+      background:"none", border:"none", cursor:"pointer",
+      color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
+    }}>✕</button>
+  </div>
+  <div style={{ flex:1, overflow:"hidden" }}>
+    <MapView
+      key="mobile"
+      {...mapProps}
+      flyRef={mapFlyRefMobile}
+      invalidateRef={mapInvalidateRefMobile}
+    />
+  </div>
+</div>
 
       {/* ── MODAL CALCULADORA (mobile) ── */}
       {calcOpen && (
