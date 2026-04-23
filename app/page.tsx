@@ -289,17 +289,31 @@ export default function Home() {
     </button>
   );
 
-  const MapViewNode = (
-    <MapView
-      postos={sortedPostos}
-      onDistritoClick={handleDistritoClick}
-      onConcelhoClick={handleConcelhoClick}
-      mostrarPins={mostrarPins}
-      mostrarPinsDistrito={mostrarPinsDistrito}
-      flyRef={mapFlyRef}
-      invalidateRef={mapInvalidateRef}
-    />
-  );
+const MapViewNode = (
+  <MapView
+    key="desktop"
+    postos={sortedPostos}
+    onDistritoClick={handleDistritoClick}
+    onConcelhoClick={handleConcelhoClick}
+    mostrarPins={mostrarPins}
+    mostrarPinsDistrito={mostrarPinsDistrito}
+    flyRef={mapFlyRef}
+    invalidateRef={mapInvalidateRef}
+  />
+);
+
+const MapViewMobile = (
+  <MapView
+    key="mobile"
+    postos={sortedPostos}
+    onDistritoClick={handleDistritoClick}
+    onConcelhoClick={handleConcelhoClick}
+    mostrarPins={mostrarPins}
+    mostrarPinsDistrito={mostrarPinsDistrito}
+    flyRef={mapFlyRef}
+    invalidateRef={mapInvalidateRef}
+  />
+);
 
   return (
     <div style={{ minHeight:"100vh", background:"var(--bg)" }}>
@@ -581,7 +595,7 @@ export default function Home() {
             }}>✕</button>
           </div>
           <div style={{ flex:1, overflow:"hidden" }}>
-            {MapViewNode}
+            {MapViewMobile}
           </div>
         </div>
       )}
