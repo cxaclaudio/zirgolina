@@ -1,13 +1,11 @@
 "use client";
 import { useState } from "react";
+import { useTheme } from "@/components/ThemeProvider";
 import type { Posto } from "@/lib/dgeg";
-
-const EURO = new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" });
 
 interface Props {
   posto: Posto;
   tipoAtivo?: "gasolina" | "gasoleo" | "gpl" | null;
-  precoDestaque?: number | null;
 }
 
 const GASOLINA_TIPOS = [
@@ -17,6 +15,30 @@ const GASOLINA_TIPOS = [
 const GASOLEO_EXCLUIR = /(agr[ií]col|biodiesel|b[0-9]+|colorid|aditivad)/i;
 const GASOLEO_TIPOS   = ["gasóleo simples", "gasoleo simples", "gasóleo especial", "gasoleo especial", "gasóleo", "gasoleo"];
 const GPL_TIPOS       = ["gpl"];
+
+const MARCA_CORES: Record<string, string> = {
+  "ALVES BANDEIRA": "#1D6FA4",
+  "AUCHAN":         "#E2001A",
+  "BP":             "#006F3C",
+  "CEPSA":          "#E2001A",
+  "GALP":           "#FF6B00",
+  "INTERMARCHÉ":    "#888888",
+  "LECLERC":        "#1D6FA4",
+  "MOEVE":          "#1D6FA4",
+  "NOVA":           "#1D6FA4",
+  "OZ ENERGIA":     "#1D6FA4",
+  "PINGO DOCE":     "#006F3C",
+  "PRIO":           "#1D6FA4",
+  "REPSOL":         "#C45000",
+  "SHELL":          "#C8960C",
+};
+
+function getMarcaCor(marca: string): string {
+  const key = Object.keys(MARCA_CORES).find(k =>
+    marca.toUpperCase().includes(k)
+  );
+  return key ? MARCA_CORES[key] : "var(--accent)";
+}
 
 function getPrecoDestaque(posto: Posto, tipo: "gasolina" | "gasoleo" | "gpl"): number | null {
   const tipos =
@@ -31,13 +53,13 @@ function getPrecoDestaque(posto: Posto, tipo: "gasolina" | "gasoleo" | "gpl"): n
 }
 
 export default function PostoCard({ posto, tipoAtivo }: Props) {
-  const [horarioOpen, setHorarioOpen] = useState(false);
+  const { dark } = useTheme();
+  const [detalhesOpen, setDetalhesOpen] = useState(false);
 
   const horarioLines = posto.horario
     ? posto.horario.split(" · ").map(s => s.trim()).filter(Boolean)
     : [];
 
-  // Preço a destacar: usa tipoAtivo se definido, senão preco principal
   const precoDestaque: number | null = tipoAtivo
     ? getPrecoDestaque(posto, tipoAtivo)
     : posto.preco;
@@ -45,6 +67,11 @@ export default function PostoCard({ posto, tipoAtivo }: Props) {
   const precoTexto = precoDestaque != null
     ? `${precoDestaque.toFixed(3)} €/L`
     : posto.precoTexto ?? "—";
+
+  const precoColor =
+    tipoAtivo === "gasoleo" ? (dark ? "#ffffff" : "#000000") :
+    tipoAtivo === "gpl"     ? "#00A8FF" :
+    "var(--accent)";
 
   function handleDirecoes(e: React.MouseEvent) {
     e.stopPropagation();
@@ -57,20 +84,24 @@ export default function PostoCard({ posto, tipoAtivo }: Props) {
   }
 
   return (
-    <article className="card" style={{ padding:"0.875rem 1rem", fontSize:"0.8rem" }}>
+    <article className="card" style={{ padding:"0.6rem 0.875rem", fontSize:"0.8rem" }}>
 
       {/* Linha 1: marca | nome + botão direções */}
-      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"0.75rem" }}>
-        <div style={{ minWidth:0 }}>
-          <h3 style={{ fontWeight:700, fontSize:"0.85rem", lineHeight:1.3, marginBottom:2 }}>
-            <span style={{ color:"var(--accent)" }}>{posto.marca}</span>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"0.6rem" }}>
+        <div style={{ minWidth:0, flex:1 }}>
+          <h3 style={{ fontWeight:700, fontSize:"0.82rem", lineHeight:1.3, margin:0 }}>
+            <span style={{ color: getMarcaCor(posto.marca ?? "") }}>{posto.marca}</span>
             <span style={{ color:"var(--text-muted)", margin:"0 0.3rem" }}>|</span>
             {posto.nome}
           </h3>
-          <p className="text-muted" style={{ fontSize:"0.7rem" }}>
-            {[posto.morada, posto.localidade, posto.codPostal].filter(Boolean).join(" · ")}
+          <p style={{
+            fontWeight:800, fontSize:"1.1rem",
+            color: precoColor, lineHeight:1, margin:"0.3rem 0 0",
+          }}>
+            {precoTexto}
           </p>
         </div>
+
         <button
           onClick={handleDirecoes}
           title="Abrir no Google Maps"
@@ -84,6 +115,7 @@ export default function PostoCard({ posto, tipoAtivo }: Props) {
             color:"var(--text-muted)",
             fontSize:"0.67rem", fontWeight:500,
             whiteSpace:"nowrap", flexShrink:0,
+            marginTop:2,
           }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -93,77 +125,79 @@ export default function PostoCard({ posto, tipoAtivo }: Props) {
         </button>
       </div>
 
-      {/* Preço destaque */}
-      <p style={{ fontWeight:800, fontSize:"1.55rem", color:"var(--accent)", lineHeight:1, margin:"0.6rem 0 0.5rem" }}>
-        {precoTexto}
-      </p>
-
       {/* Combustíveis */}
       {posto.combustiveis.length > 0 && (
-        <div style={{ borderRadius:"0.5rem", overflow:"hidden", border:"1px solid var(--border)", marginBottom:"0.6rem" }}>
+        <div style={{ borderRadius:"0.5rem", overflow:"hidden", border:"1px solid var(--border)", margin:"0.45rem 0 0" }}>
           {posto.combustiveis.map((c, i) => (
             <div key={c.tipo} style={{
               display:"flex", justifyContent:"space-between", alignItems:"center",
-              padding:"0.3rem 0.7rem",
+              padding:"0.25rem 0.7rem",
               background: i%2===0 ? "var(--bg-input)" : "transparent",
               borderBottom: i < posto.combustiveis.length-1 ? "1px solid var(--border)" : "none",
             }}>
-              <span className="text-muted" style={{ fontSize:"0.7rem" }}>{c.tipo}</span>
-              <strong style={{ fontSize:"0.75rem", color:"var(--accent)" }}>{c.texto}</strong>
+              <span className="text-muted" style={{ fontSize:"0.68rem" }}>{c.tipo}</span>
+              <strong style={{ fontSize:"0.72rem", color:"var(--accent)" }}>{c.texto}</strong>
             </div>
           ))}
         </div>
       )}
 
-      {/* Meta info — sem "Atualizado" */}
-      <div style={{ display:"flex", gap:"1rem", flexWrap:"wrap", marginBottom: horarioLines.length ? "0.4rem" : 0 }}>
-        {[
-          { label:"Localidade",  value: posto.localidade || posto.municipio },
-          { label:"Cód. Postal", value: posto.codPostal || "—" },
-        ].map(({ label, value }) => (
-          <div key={label}>
-            <p className="field-label" style={{ marginBottom:1 }}>{label}</p>
-            <p style={{ fontSize:"0.72rem", fontWeight:500 }}>{value}</p>
-          </div>
-        ))}
+      {/* Detalhes colapsável */}
+      <div style={{ marginTop:"0.4rem" }}>
+        <button
+          onClick={() => setDetalhesOpen(o => !o)}
+          style={{
+            display:"flex", alignItems:"center", gap:"0.3rem",
+            background:"none", border:"none", cursor:"pointer",
+            fontSize:"0.68rem", fontWeight:500,
+            color:"var(--text-muted)", padding:0,
+          }}>
+          {detalhesOpen ? "Fechar detalhes" : "Ver detalhes"}
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+            style={{ transform: detalhesOpen ? "rotate(180deg)" : "none", transition:"transform 0.2s" }}>
+            <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5"
+              strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
 
-        {/* Horário colapsável */}
-        {horarioLines.length > 0 && (
-          <div>
-            <p className="field-label" style={{ marginBottom:1 }}>Horário</p>
-            <button
-              onClick={() => setHorarioOpen(o => !o)}
-              style={{
-                display:"flex", alignItems:"center", gap:"0.3rem",
-                background:"none", border:"none", cursor:"pointer",
-                fontSize:"0.72rem", fontWeight:500, color:"var(--text)", padding:0,
-              }}>
-              {horarioOpen ? "Fechar" : "Ver horário"}
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
-                style={{ transform: horarioOpen ? "rotate(180deg)" : "none", transition:"transform 0.2s" }}>
-                <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5"
-                  strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            {horarioOpen && (
-              <div style={{ marginTop:"0.3rem", display:"flex", flexDirection:"column", gap:"0.1rem" }}>
-                {horarioLines.map((l, i) => (
-                  <p key={i} className="text-muted" style={{ fontSize:"0.7rem" }}>{l}</p>
-                ))}
-              </div>
-            )}
+        {detalhesOpen && (
+          <div style={{ marginTop:"0.4rem", display:"flex", flexDirection:"column", gap:"0.35rem" }}>
+
+            {/* Morada */}
+            <div style={{ display:"flex", gap:"0.5rem", alignItems:"baseline" }}>
+              <p className="field-label" style={{ margin:0, flexShrink:0 }}>Morada:</p>
+              <p style={{ fontSize:"0.72rem", fontWeight:500, margin:0, color:"var(--text)" }}>
+                {posto.morada || "—"}
+              </p>
+            </div>
+
+            {/* Cód. Postal */}
+            <div style={{ display:"flex", gap:"0.5rem", alignItems:"baseline" }}>
+              <p className="field-label" style={{ margin:0, flexShrink:0 }}>Cód. Postal:</p>
+              <p style={{ fontSize:"0.72rem", fontWeight:500, margin:0, color:"var(--text)" }}>
+                {posto.codPostal || "—"}
+              </p>
+            </div>
+
+            {/* Horário */}
+            <div>
+              <p className="field-label" style={{ margin:"0 0 2px" }}>Horário:</p>
+              {horarioLines.length > 0 ? (
+                <div style={{ display:"flex", flexDirection:"column", gap:"0.1rem" }}>
+                  {horarioLines.map((l, i) => (
+                    <p key={i} style={{ fontSize:"0.72rem", margin:0, color:"var(--text)" }}>{l}</p>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize:"0.72rem", margin:0, color:"var(--text-muted)", fontStyle:"italic" }}>
+                  Sem informação
+                </p>
+              )}
+            </div>
+
           </div>
         )}
       </div>
-
-      {/* Estimativas 40/50 L — usa precoDestaque */}
-      {precoDestaque != null && (
-        <p className="text-muted" style={{ fontSize:"0.67rem", marginTop:"0.35rem" }}>
-          40 L ≈ <strong style={{ color:"var(--accent)" }}>{EURO.format(precoDestaque * 40)}</strong>
-          {" · "}
-          50 L ≈ <strong style={{ color:"var(--accent)" }}>{EURO.format(precoDestaque * 50)}</strong>
-        </p>
-      )}
     </article>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import { useTheme } from "@/components/ThemeProvider";
 import { ALLOWED_MARCAS } from "@/lib/dgeg";
 
 interface Distrito  { Id: number; Descritivo: string; }
@@ -28,29 +29,30 @@ export default function FilterPanel({
   onChange, onSearch, loading, total,
   currentFuelId, distritoAtivo, municipioAtivo, cheapestPrice,
 }: Props) {
+  const { dark } = useTheme();
   const [distritos,   setDistritos]   = useState<Distrito[]>([]);
   const [municipios,  setMunicipios]  = useState<Municipio[]>([]);
   const [idDistrito,  setIdDistrito]  = useState("");
   const [idMunicipio, setIdMunicipio] = useState("");
   const [marcaId,     setMarcaId]     = useState("");
 
-  // Calculadora
   const [litros,    setLitros]    = useState(50);
   const [precoCalc, setPrecoCalc] = useState("");
   const precoNum  = parseFloat(precoCalc) || cheapestPrice || 0;
   const totalCalc = precoNum > 0 ? (precoNum * litros).toFixed(2) : null;
 
+  // cor dinâmica preto/branco
+  const monoColor = dark ? "#ffffff" : "#000000";
+
   useEffect(() => {
     if (!precoCalc && cheapestPrice) setPrecoCalc(cheapestPrice.toFixed(3));
   }, [cheapestPrice]);
 
-  // Sync distrito do mapa → select
   useEffect(() => {
     if (distritoAtivo === idDistrito) return;
     setIdDistrito(distritoAtivo);
   }, [distritoAtivo]);
 
-  // Sync município do mapa → select
   useEffect(() => {
     if (municipioAtivo === idMunicipio) return;
     setIdMunicipio(municipioAtivo);
@@ -76,7 +78,6 @@ export default function FilterPanel({
       .then(r => r.json()).then(d => setMunicipios(d.data ?? []));
   }, [idDistrito]);
 
-  // onChange apenas actualiza estado — SEM fetch
   function handleDistritoChange(v: string) {
     setIdDistrito(v); setIdMunicipio("");
     onChange(vals({ idDistrito: v, idMunicipio: "" }));
@@ -149,6 +150,11 @@ export default function FilterPanel({
             type="button"
             onClick={() => onSearch(vals())}
             className="btn-primary"
+            style={{
+              background: monoColor,
+              color: dark ? "#000000" : "#ffffff",
+              borderColor: monoColor,
+            }}
           >
             Pesquisar
           </button>
@@ -178,7 +184,7 @@ export default function FilterPanel({
           <div style={{ display: "flex", justifyContent: "space-between",
             alignItems: "center", marginBottom: "0.3rem" }}>
             <label className="field-label" style={{ marginBottom: 0 }}>Litros</label>
-            <span style={{ fontWeight: 700, fontSize: "0.8rem", color: "var(--accent)" }}>
+            <span style={{ fontWeight: 700, fontSize: "0.8rem", color: monoColor }}>
               {litros} L
             </span>
           </div>
@@ -186,7 +192,7 @@ export default function FilterPanel({
             type="range" min="5" max="100" step="5"
             value={litros}
             onChange={e => setLitros(Number(e.target.value))}
-            style={{ width: "100%", accentColor: "var(--accent)", cursor: "pointer" }}
+            style={{ width: "100%", accentColor: monoColor, cursor: "pointer" }}
           />
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span className="text-muted" style={{ fontSize: "0.6rem" }}>5 L</span>
@@ -202,7 +208,7 @@ export default function FilterPanel({
           {totalCalc ? (
             <>
               <p style={{ fontWeight: 800, fontSize: "1.4rem",
-                color: "var(--accent)", lineHeight: 1 }}>
+                color: monoColor, lineHeight: 1 }}>
                 {totalCalc} €
               </p>
               <p className="text-muted" style={{ fontSize: "0.62rem", marginTop: "0.2rem" }}>

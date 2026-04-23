@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { getMunicipios, type Posto } from "@/lib/dgeg";
 import FilterPanel, { type FilterValues } from "@/components/FilterPanel";
 import PostoCard from "@/components/PostoCard";
+import Calculadora from "@/components/Calculadora";
 import { useTheme } from "@/components/ThemeProvider";
 
 const MapView = dynamic(() => import("@/components/MapView"), {
@@ -49,6 +50,12 @@ const GASOLEO_EXCLUIR = /(agr[ií]col|biodiesel|b[0-9]+|colorid|aditivad)/i;
 const GASOLEO_TIPOS   = ["gasóleo simples", "gasoleo simples", "gasóleo especial", "gasoleo especial", "gasóleo", "gasoleo"];
 const GPL_TIPOS       = ["gpl"];
 
+const CRIPTO = [
+  { label:"XMR Address", addr:"45CQZ4nvwVC4L2x5BTN5F3iZBzW6oqjt6XzNLcm3mocpGKNmAaUAs7DJAddCCMpF1nKUa3Apybw8cDtmNvbFVSux2yZPXaf" },
+  { label:"BTC Address", addr:"bc1qc7ahx5r0vhrlvmsg54kyk599yyh86fvl7thmsv" },
+  { label:"ETH Address", addr:"0x985b833D87AD530790212440C8A3FA751BBC9b90" },
+];
+
 function precoRelevante(posto: Posto, tipo: "gasolina" | "gasoleo" | "gpl"): number {
   const tipos =
     tipo === "gasolina" ? GASOLINA_TIPOS :
@@ -74,6 +81,10 @@ export default function Home() {
   const [distritoAtivo,  setDistritoAtivo]  = useState("");
   const [municipioAtivo, setMunicipioAtivo] = useState("");
   const [ordenacao,      setOrdenacao]      = useState("gasolina_asc");
+  const [mapaOpen,       setMapaOpen]       = useState(false);
+  const [calcOpen,       setCalcOpen]       = useState(false);
+  const [doarOpen,       setDoarOpen]       = useState(false);
+  const [copiedAddr,     setCopiedAddr]     = useState<string | null>(null);
 
   const mapFlyRef = useRef<{
     flyToDistrito: (id: string) => void;
@@ -199,6 +210,12 @@ export default function Home() {
     fetchPostos(f);
   }, [fetchPostos]);
 
+  function handleCopy(addr: string) {
+    navigator.clipboard.writeText(addr);
+    setCopiedAddr(addr);
+    setTimeout(() => setCopiedAddr(null), 2000);
+  }
+
   const tipoAtivo: "gasolina" | "gasoleo" | "gpl" | null =
     ordenacao === "gasolina_asc" ? "gasolina" :
     ordenacao === "gasoleo_asc"  ? "gasoleo"  :
@@ -248,22 +265,31 @@ export default function Home() {
     { label: "⬇ GPL",      value: "gpl_asc"       },
   ] as const;
 
+  const MapViewNode = (
+    <MapView
+      postos={sortedPostos}
+      onDistritoClick={handleDistritoClick}
+      onConcelhoClick={handleConcelhoClick}
+      mostrarPins={mostrarPins}
+      mostrarPinsDistrito={mostrarPinsDistrito}
+      flyRef={mapFlyRef}
+    />
+  );
+
   return (
     <div style={{ minHeight:"100vh", background:"var(--bg)" }}>
 
       <style>{`
         @media (max-width: 900px) {
-          .main-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .mapa-col {
-            position: relative !important;
-            top: unset !important;
-            height: 55vh !important;
-            order: -1;
-          }
-          .lista-col { order: 1; }
-          .filtros-col { order: 2; }
+          .main-grid { grid-template-columns: 1fr !important; }
+          .mapa-col  { display: none !important; }
+          .lista-col  { order: 1; }
+          .filtros-col { order: 0; }
+          .mobile-actions { display: flex !important; }
+          .desktop-only { display: none !important; }
+        }
+        @media (min-width: 901px) {
+          .mobile-actions { display: none !important; }
         }
       `}</style>
 
@@ -276,10 +302,11 @@ export default function Home() {
       }}>
         <div style={{
           maxWidth:1600, margin:"0 auto", padding:"0 1.25rem", width:"100%",
-          display:"flex", alignItems:"center", justifyContent:"space-between", gap:"1rem",
+          display:"flex", alignItems:"center", justifyContent:"space-between", gap:"0.75rem",
         }}>
-          <div onClick={() => window.location.reload()}
-            style={{ display:"flex", alignItems:"center", height:HEADER_H, cursor:"pointer" }}>
+
+          {/* Logo */}
+			<div style={{ display:"flex", alignItems:"center", height:HEADER_H }}>
             <img
               src={dark ? "/logo-dark.png" : "/logo-light.png"}
               alt="Zirgolina"
@@ -302,12 +329,65 @@ export default function Home() {
 
           <div style={{ flex:1 }} />
 
-          <button onClick={toggle} style={{
+          {/* Botões mobile */}
+          <div className="mobile-actions" style={{ gap:"0.5rem" }}>
+            <button onClick={() => { setMapaOpen(true); setCalcOpen(false); }} style={{
+              background:"var(--accent)", color:"#fff",
+              border:"none", borderRadius:"0.6rem",
+              padding:"0.35rem 0.7rem", fontSize:"0.72rem", fontWeight:600, cursor:"pointer",
+              display:"flex", alignItems:"center", gap:"0.3rem",
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                <line x1="8" y1="2" x2="8" y2="18"/>
+                <line x1="16" y1="6" x2="16" y2="22"/>
+              </svg>
+              Mapa
+            </button>
+            <button onClick={() => { setCalcOpen(true); setMapaOpen(false); }} style={{
+              background:"transparent", color:"var(--text-muted)",
+              border:"1px solid var(--border)", borderRadius:"0.6rem",
+              padding:"0.35rem 0.7rem", fontSize:"0.72rem", fontWeight:600, cursor:"pointer",
+              display:"flex", alignItems:"center", gap:"0.3rem",
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="4" y="2" width="16" height="20" rx="2"/>
+                <line x1="8" y1="6" x2="16" y2="6"/>
+                <line x1="8" y1="10" x2="16" y2="10"/>
+                <line x1="8" y1="14" x2="12" y2="14"/>
+              </svg>
+              Calculadora
+            </button>
+          </div>
+
+          {/* Botão Doar */}
+          <button onClick={() => setDoarOpen(true)} style={{
             background:"transparent",
             color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
             border: dark ? "1px solid rgba(255,255,255,0.15)" : "1px solid var(--border)",
             borderRadius:"0.6rem", padding:"0.35rem 0.6rem",
             cursor:"pointer", display:"flex", alignItems:"center", gap:"0.4rem",
+            fontSize:"0.72rem", fontWeight:500,
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
+              <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+              <line x1="6" y1="1" x2="6" y2="4"/>
+              <line x1="10" y1="1" x2="10" y2="4"/>
+              <line x1="14" y1="1" x2="14" y2="4"/>
+            </svg>
+          </button>
+
+          {/* Toggle tema — desktop */}
+          <button className="desktop-only" onClick={toggle} style={{
+            background:"transparent",
+            color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
+            border: dark ? "1px solid rgba(255,255,255,0.15)" : "1px solid var(--border)",
+            borderRadius:"0.6rem", padding:"0.35rem 0.6rem",
+            cursor:"pointer", display:"flex", alignItems:"center",
             fontSize:"0.72rem", fontWeight:500,
           }}>
             {dark ? (
@@ -329,12 +409,12 @@ export default function Home() {
                 <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
               </svg>
             )}
-            {dark ? "Claro" : "Escuro"}
           </button>
+
         </div>
       </header>
 
-      {/* ── MAIN ── */}
+      {/* ── MAIN GRID ── */}
       <div className="main-grid" style={{
         maxWidth:1600, margin:"0 auto", padding:"1rem 1.25rem",
         display:"grid",
@@ -343,7 +423,7 @@ export default function Home() {
         alignItems:"start",
       }}>
 
-        {/* Col 1 — SIDEBAR */}
+        {/* Col 1 — SIDEBAR filtros */}
         <div className="filtros-col">
           <FilterPanel
             onChange={handleFilterChange}
@@ -396,46 +476,71 @@ export default function Home() {
             </div>
           )}
 
-          {postos.length > 0 && (
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"0.4rem" }}>
-              <div style={{ display:"flex", gap:"0.35rem" }}>
-                {[
-                  { l:"Mín",   v: minP ? minP.toFixed(3) : "—" },
-                  { l:"Média", v: precosVisiveis.length
-                    ? (precosVisiveis.reduce((a,b) => a+b) / precosVisiveis.length).toFixed(3) : "—" },
-                  { l:"Máx",   v: precosVisiveis.length
-                    ? Math.max(...precosVisiveis).toFixed(3) : "—" },
-                ].map(s => (
-                  <div key={s.l} className="card"
-                    style={{ padding:"0.35rem 0.65rem", textAlign:"center", minWidth:80 }}>
-                    <p style={{ fontWeight:800, fontSize:"0.82rem", color:"var(--accent)" }}>{s.v}</p>
-                    <p className="text-muted" style={{ fontSize:"0.55rem", marginTop:1 }}>{s.l}</p>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display:"flex", gap:"0.35rem" }}>
-                {SORT_BTNS.map(opt => {
-                  const active = ordenacao === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => setOrdenacao(opt.value)}
-                      className="btn-ghost"
-                      style={{
-                        fontSize:"0.72rem", padding:"0.3rem 0.65rem",
-                        display:"flex", alignItems:"center", gap:"0.35rem",
-                        background:  active ? "var(--accent)" : undefined,
-                        color:       active ? "#fff"          : undefined,
-                        borderColor: active ? "var(--accent)" : undefined,
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+{postos.length > 0 && (
+  <div style={{ display:"flex", flexDirection:"column", gap:"0.35rem" }}>
+
+    {/* Mín / Média / Máx */}
+    <div style={{ display:"flex", gap:"0.3rem" }}>
+      {[
+        { l:"Mín",   v: minP ? minP.toFixed(3) : "—", color:"var(--accent)" },
+        { l:"Média", v: precosVisiveis.length
+          ? (precosVisiveis.reduce((a,b) => a+b) / precosVisiveis.length).toFixed(3) : "—",
+          color:"#C8960C" },
+        { l:"Máx",   v: precosVisiveis.length
+          ? Math.max(...precosVisiveis).toFixed(3) : "—", color:"#ef4444" },
+      ].map(s => (
+        <div key={s.l} className="card"
+          style={{ padding:"0.25rem 0.5rem", textAlign:"center", flex:1 }}>
+          <p style={{ fontWeight:800, fontSize:"0.75rem", color: s.color }}>{s.v}</p>
+          <p className="text-muted" style={{ fontSize:"0.5rem", marginTop:1 }}>{s.l}</p>
+        </div>
+      ))}
+    </div>
+
+    {/* Botões ordenação */}
+    <div style={{ display:"flex", gap:"0.3rem" }}>
+      {SORT_BTNS.map(opt => {
+        const active = ordenacao === opt.value;
+
+        const colors: Record<string, { bg: string; border: string; text: string }> = {
+          gasolina_asc: {
+            bg:     active ? "var(--accent)"                    : "transparent",
+            border: active ? "var(--accent)"                    : "var(--border)",
+            text:   active ? "#fff"                             : "var(--text-muted)",
+          },
+          gasoleo_asc: {
+            bg:     active ? (dark ? "#ffffff" : "#000000")     : "transparent",
+            border: active ? (dark ? "#ffffff" : "#000000")     : "var(--border)",
+            text:   active ? (dark ? "#000000" : "#ffffff")     : "var(--text-muted)",
+          },
+          gpl_asc: {
+            bg:     active ? "#00A8FF"                          : "transparent",
+            border: active ? "#00A8FF"                          : "var(--border)",
+            text:   active ? "#ffffff"                          : "var(--text-muted)",
+          },
+        };
+
+        const c = colors[opt.value];
+        return (
+          <button key={opt.value} onClick={() => setOrdenacao(opt.value)}
+            className="btn-ghost"
+            style={{
+              fontSize:"0.68rem", padding:"0.25rem 0.5rem",
+              flex:1,
+              display:"flex", alignItems:"center", justifyContent:"center", gap:"0.3rem",
+              background:  c.bg,
+              color:       c.text,
+              borderColor: c.border,
+              transition:  "all 0.15s ease",
+            }}>
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+
+  </div>
+)}
 
           {error && (
             <div className="card" style={{ padding:"0.65rem", color:"#f87171", fontSize:"0.73rem" }}>
@@ -471,22 +576,145 @@ export default function Home() {
           )}
         </div>
 
-        {/* Col 3 — MAPA */}
+        {/* Col 3 — MAPA desktop */}
         <div className="card mapa-col" style={{
           overflow:"hidden", position:"sticky",
           top: HEADER_H + 8,
           height:`calc(100vh - ${HEADER_H + 24}px)`,
         }}>
-          <MapView
-            postos={postos}
-            onDistritoClick={handleDistritoClick}
-            onConcelhoClick={handleConcelhoClick}
-            mostrarPins={mostrarPins}
-            mostrarPinsDistrito={mostrarPinsDistrito}
-            flyRef={mapFlyRef}
-          />
+          {MapViewNode}
         </div>
       </div>
+
+      {/* ── MODAL MAPA (mobile) ── */}
+      {mapaOpen && (
+        <div style={{
+          position:"fixed", inset:0, zIndex:100,
+          background:"var(--bg)", display:"flex", flexDirection:"column",
+        }}>
+          <div style={{
+            display:"flex", alignItems:"center", justifyContent:"space-between",
+            padding:"0 1rem", height:HEADER_H,
+            borderBottom:"1px solid var(--border)", flexShrink:0,
+          }}>
+            <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Mapa</span>
+            <button onClick={() => setMapaOpen(false)} style={{
+              background:"none", border:"none", cursor:"pointer",
+              color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
+            }}>✕</button>
+          </div>
+          <div style={{ flex:1, overflow:"hidden" }}>
+            {MapViewNode}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL CALCULADORA (mobile) ── */}
+      {calcOpen && (
+        <div style={{
+          position:"fixed", inset:0, zIndex:100,
+          background:"var(--bg)", display:"flex", flexDirection:"column",
+          overflowY:"auto",
+        }}>
+          <div style={{
+            display:"flex", alignItems:"center", justifyContent:"space-between",
+            padding:"0 1rem", height:HEADER_H,
+            borderBottom:"1px solid var(--border)", flexShrink:0,
+          }}>
+            <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Calculadora</span>
+            <button onClick={() => setCalcOpen(false)} style={{
+              background:"none", border:"none", cursor:"pointer",
+              color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
+            }}>✕</button>
+          </div>
+          <div style={{ flex:1, padding:"1rem" }}>
+            <Calculadora />
+          </div>
+        </div>
+      )}
+
+      {/* ── POPUP DOAR ── */}
+      {doarOpen && (
+        <div
+          onClick={() => setDoarOpen(false)}
+          style={{
+            position:"fixed", inset:0, zIndex:200,
+            background:"rgba(0,0,0,0.55)", backdropFilter:"blur(3px)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            padding:"1rem",
+          }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            className="card"
+            style={{
+              maxWidth:480, width:"100%",
+              padding:"1.5rem", display:"flex", flexDirection:"column", gap:"1rem",
+              maxHeight:"90vh", overflowY:"auto",
+            }}>
+
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <span style={{ fontWeight:700, fontSize:"0.95rem" }}>Apoiar o projeto 💚</span>
+              <button onClick={() => setDoarOpen(false)} style={{
+                background:"none", border:"none", cursor:"pointer",
+                color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1,
+              }}>✕</button>
+            </div>
+
+            <p style={{ fontSize:"0.78rem", lineHeight:1.6, color:"var(--text)", margin:0 }}>
+              Esta aplicação é completamente gratuita e não tem qualquer publicidade, é apenas
+              carregada de boa vontade! Se queres ajudar-me a manter este projeto, tens algumas
+              formas de como contribuir abaixo. Se queres contribuir de outra forma, por favor
+              envia um email para{" "}
+              <a href="mailto:zirgolina@tuta.io" style={{ color:"var(--accent)" }}>
+                zirgolina@tuta.io
+              </a>.
+            </p>
+
+            {CRIPTO.map(({ label, addr }) => (
+              <div key={label} style={{ display:"flex", flexDirection:"column", gap:"0.3rem" }}>
+                <p className="field-label" style={{ margin:0 }}>{label}</p>
+                <div style={{
+                  display:"flex", alignItems:"center", gap:"0.5rem",
+                  background:"var(--bg-input)", border:"1px solid var(--border)",
+                  borderRadius:"0.5rem", padding:"0.4rem 0.6rem",
+                }}>
+                  <span style={{
+                    fontSize:"0.65rem", fontFamily:"monospace",
+                    color:"var(--text)", flex:1, wordBreak:"break-all",
+                  }}>
+                    {addr}
+                  </span>
+                  <button
+                    onClick={() => handleCopy(addr)}
+                    title="Copiar"
+                    style={{
+                      background:"none", border:"none", cursor:"pointer",
+                      color: copiedAddr === addr ? "var(--accent)" : "var(--text-muted)",
+                      flexShrink:0, padding:"0.1rem",
+                      display:"flex", alignItems:"center",
+                      transition:"color 0.2s",
+                    }}>
+                    {copiedAddr === addr ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

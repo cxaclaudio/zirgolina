@@ -1,11 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useTheme } from "@/components/ThemeProvider";
 
 const EURO = new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" });
 
 export default function Calculadora({ defaultPrice = 1.76 }: { defaultPrice?: number }) {
+  const { dark } = useTheme();
   const [litros, setLitros] = useState(40);
   const [preco,  setPreco]  = useState(defaultPrice);
+
+  const monoColor = dark ? "#ffffff" : "#000000";
 
   useEffect(() => { setPreco(defaultPrice); }, [defaultPrice]);
 
@@ -20,7 +24,7 @@ export default function Calculadora({ defaultPrice = 1.76 }: { defaultPrice?: nu
             onChange={e => setLitros(Number(e.target.value))} className="field-input text-center" />
           <input type="range" min={1} max={100} step={1} value={litros}
             onChange={e => setLitros(Number(e.target.value))}
-            className="w-full mt-1.5" style={{ accentColor:"var(--accent)" }} />
+            className="w-full mt-1.5" style={{ accentColor: monoColor }} />
         </div>
         <div>
           <label className="field-label">€ / Litro</label>
@@ -28,15 +32,18 @@ export default function Calculadora({ defaultPrice = 1.76 }: { defaultPrice?: nu
             onChange={e => setPreco(Number(e.target.value))} className="field-input text-center" />
           <input type="range" min={1} max={2.5} step={0.001} value={preco}
             onChange={e => setPreco(Number(e.target.value))}
-            className="w-full mt-1.5" style={{ accentColor:"var(--accent)" }} />
+            className="w-full mt-1.5" style={{ accentColor: monoColor }} />
         </div>
       </div>
 
       <div className="rounded-xl p-3.5 flex items-center justify-between"
-        style={{ background:"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.2)" }}>
+        style={{
+          background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+          border: dark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.12)",
+        }}>
         <div>
           <p className="field-label mb-0.5">Total estimado</p>
-          <p className="font-display font-extrabold text-accent" style={{ fontSize:"1.7rem" }}>
+          <p style={{ fontWeight:800, fontSize:"1.7rem", color: monoColor, lineHeight:1 }}>
             {EURO.format(litros * preco)}
           </p>
         </div>
@@ -49,7 +56,14 @@ export default function Calculadora({ defaultPrice = 1.76 }: { defaultPrice?: nu
       <div className="flex gap-1.5 flex-wrap">
         {[20, 30, 40, 50, 60, 80].map(l => (
           <button key={l} type="button" onClick={() => setLitros(l)}
-            className={`chip ${litros === l ? "active" : ""}`}>{l} L</button>
+            className={`chip ${litros === l ? "active" : ""}`}
+            style={litros === l ? {
+              background: monoColor,
+              color: dark ? "#000000" : "#ffffff",
+              borderColor: monoColor,
+            } : {}}>
+            {l} L
+          </button>
         ))}
       </div>
     </div>
