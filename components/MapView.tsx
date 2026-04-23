@@ -257,6 +257,7 @@ export default function MapView({
       });
     })();
   }, []);
+  
 
   // ── Pins ──
   useEffect(() => {

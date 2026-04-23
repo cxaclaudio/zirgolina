@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect  } from "react";
 import { getMunicipios, type Posto } from "@/lib/dgeg";
 import FilterPanel, { type FilterValues } from "@/components/FilterPanel";
 import PostoCard from "@/components/PostoCard";
@@ -193,6 +193,22 @@ export default function Home() {
     filtersRef.current = f;
     fetchPostos(f);
   }, [fetchPostos]);
+
+useEffect(() => {
+  if (!mapaOpen) return;
+  const t = setTimeout(() => {
+    mapInvalidateRefMobile.current?.();
+    if (municipioAtivo && distritoAtivo) {
+      getMunicipios(Number(distritoAtivo)).then(lista => {
+        const m = (lista as any[]).find(x => String(x.Id) === municipioAtivo);
+        if (m) mapFlyRefMobile.current?.flyToConcelho(distritoAtivo, m.Descritivo);
+      });
+    } else if (distritoAtivo) {
+      mapFlyRefMobile.current?.flyToDistrito(distritoAtivo);
+    }
+  }, 180);
+  return () => clearTimeout(t);
+}, [mapaOpen, distritoAtivo, municipioAtivo]);
 
   function handleCopy(addr: string) {
     navigator.clipboard.writeText(addr);
