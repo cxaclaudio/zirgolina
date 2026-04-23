@@ -71,6 +71,8 @@ export default function Home() {
     flyToConcelho: (distritoId: string, concelhoNome: string) => void;
   } | null>(null);
 
+  const mapInvalidateRef = useRef<(() => void) | null>(null);
+
   const filtersRef = useRef<FilterValues>({
     fuelId: "3201", idDistrito: "", idMunicipio: "", marcaId: "", search: "",
   });
@@ -100,27 +102,17 @@ export default function Home() {
 
       if (!json.ok) throw new Error(json.error ?? "Erro desconhecido");
 
-const filtered = (json.data as Posto[]).filter(p => {
-  if (!p.marca || p.marca.toLowerCase() === "genérico" || p.marca.toLowerCase() === "generico") {
-    console.log("❌ marca:", p.nome, p.marca);
-    return false;
-  }
-  if (p.preco !== null && p.preco <= 0) {
-    console.log("❌ preço:", p.nome, p.preco);
-    return false;
-  }
-  if (f.idDistrito && p.lat !== null && p.lng !== null) {
-    const db = DISTRITO_BOUNDS[f.idDistrito];
-    if (db && (p.lat < db[0] || p.lat > db[1] || p.lng < db[2] || p.lng > db[3])) {
-      console.log("❌ bounds:", p.nome, p.lat, p.lng, "bound:", db);
-      return false;
-    }
-  }
-  return true;
-});
-console.log("✅ total após filtro:", filtered.length);
+      const filtered = (json.data as Posto[]).filter(p => {
+        if (!p.marca || p.marca.toLowerCase() === "genérico" || p.marca.toLowerCase() === "generico") return false;
+        if (p.preco !== null && p.preco <= 0) return false;
+        if (f.idDistrito && p.lat !== null && p.lng !== null) {
+          const db = DISTRITO_BOUNDS[f.idDistrito];
+          if (db && (p.lat < db[0] || p.lat > db[1] || p.lng < db[2] || p.lng > db[3])) return false;
+        }
+        return true;
+      });
 
-setPostos(filtered);
+      setPostos(filtered);
     } catch (e) { setError(String(e)); setPostos([]); }
     finally { setLoading(false); }
   }, []);
@@ -305,32 +297,33 @@ setPostos(filtered);
       mostrarPins={mostrarPins}
       mostrarPinsDistrito={mostrarPinsDistrito}
       flyRef={mapFlyRef}
+      invalidateRef={mapInvalidateRef}
     />
   );
 
   return (
     <div style={{ minHeight:"100vh", background:"var(--bg)" }}>
 
-<style>{`
-  @media (max-width: 900px) {
-    .main-grid { grid-template-columns: 1fr !important; }
-    .mapa-col  { display: none !important; }
-    .lista-col  { order: 1; }
-    .filtros-col { order: 0; }
-    .mobile-actions { display: flex !important; }
-    .desktop-only { display: none !important; }
-    .calc-sidebar { display: none !important; }
-  }
-  @media (min-width: 901px) {
-    .mobile-actions { display: none !important; }
-    .filtros-col {
-      position: sticky;
-      top: ${HEADER_H + 8}px;
-      max-height: calc(100vh - ${HEADER_H + 24}px);
-      overflow-y: auto;
-    }
-  }
-`}</style>
+      <style>{`
+        @media (max-width: 900px) {
+          .main-grid { grid-template-columns: 1fr !important; }
+          .mapa-col  { display: none !important; }
+          .lista-col  { order: 1; }
+          .filtros-col { order: 0; }
+          .mobile-actions { display: flex !important; }
+          .desktop-only { display: none !important; }
+          .calc-sidebar { display: none !important; }
+        }
+        @media (min-width: 901px) {
+          .mobile-actions { display: none !important; }
+          .filtros-col {
+            position: sticky;
+            top: ${HEADER_H + 8}px;
+            max-height: calc(100vh - ${HEADER_H + 24}px);
+            overflow-y: auto;
+          }
+        }
+      `}</style>
 
       {/* ── TOPBAR ── */}
       <header style={{
@@ -372,7 +365,11 @@ setPostos(filtered);
           <div className="mobile-actions" style={{ gap:"0.5rem" }}>
 
             {/* Mapa */}
-            <button onClick={() => { setMapaOpen(true); setCalcOpen(false); }} style={{
+            <button onClick={() => {
+              setMapaOpen(true);
+              setCalcOpen(false);
+              setTimeout(() => mapInvalidateRef.current?.(), 200);
+            }} style={{
               background:"var(--accent)", color:"#fff",
               border:"none", borderRadius:"0.6rem",
               padding:"0.35rem 0.7rem", fontSize:"0.72rem", fontWeight:600, cursor:"pointer",
@@ -387,37 +384,33 @@ setPostos(filtered);
               Mapa
             </button>
 
-            {/* Calculadora — só emoji */}
-<button onClick={() => { setCalcOpen(true); setMapaOpen(false); }} style={{
-  background:"transparent", color:"var(--text-muted)",
-  border:"1px solid var(--border)", borderRadius:"0.6rem",
-  padding:"0.35rem 0.6rem", cursor:"pointer",
-  display:"flex", alignItems:"center",
-}}>
-<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-  <rect x="4" y="2" width="16" height="20" rx="2"/>
-  <rect x="7" y="5" width="10" height="4" rx="1"/>
-  <circle cx="8"  cy="14" r="0.8" fill="currentColor"/>
-  <circle cx="12" cy="14" r="0.8" fill="currentColor"/>
-  <circle cx="16" cy="14" r="0.8" fill="currentColor"/>
-  <circle cx="8"  cy="18" r="0.8" fill="currentColor"/>
-  <circle cx="12" cy="18" r="0.8" fill="currentColor"/>
-  <circle cx="16" cy="18" r="0.8" fill="currentColor"/>
-</svg>
-</button>
+            {/* Calculadora */}
+            <button onClick={() => { setCalcOpen(true); setMapaOpen(false); }} style={{
+              background:"transparent", color:"var(--text-muted)",
+              border:"1px solid var(--border)", borderRadius:"0.6rem",
+              padding:"0.35rem 0.6rem", cursor:"pointer",
+              display:"flex", alignItems:"center",
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="4" y="2" width="16" height="20" rx="2"/>
+                <rect x="7" y="5" width="10" height="4" rx="1"/>
+                <circle cx="8"  cy="14" r="0.8" fill="currentColor"/>
+                <circle cx="12" cy="14" r="0.8" fill="currentColor"/>
+                <circle cx="16" cy="14" r="0.8" fill="currentColor"/>
+                <circle cx="8"  cy="18" r="0.8" fill="currentColor"/>
+                <circle cx="12" cy="18" r="0.8" fill="currentColor"/>
+                <circle cx="16" cy="18" r="0.8" fill="currentColor"/>
+              </svg>
+            </button>
 
-            {/* Doar */}
             {doarBtn}
-
-            {/* Tema */}
             {themeBtn}
-
           </div>
 
           {/* Botões desktop */}
-          <div className="desktop-only" style={{ display:"flex", gap:"0.5rem"}}>
-		    {doarBtn}
+          <div className="desktop-only" style={{ display:"flex", gap:"0.5rem" }}>
+            {doarBtn}
             {themeBtn}
           </div>
 
@@ -488,8 +481,6 @@ setPostos(filtered);
 
           {postos.length > 0 && (
             <div style={{ display:"flex", flexDirection:"column", gap:"0.35rem" }}>
-
-              {/* Botões ordenação */}
               <div style={{ display:"flex", gap:"0.3rem" }}>
                 {SORT_BTNS.map(opt => {
                   const active = ordenacao === opt.value;
@@ -515,20 +506,16 @@ setPostos(filtered);
                     <button key={opt.value} onClick={() => setOrdenacao(opt.value)}
                       className="btn-ghost"
                       style={{
-                        fontSize:"0.68rem", padding:"0.25rem 0.5rem",
-                        flex:1,
+                        fontSize:"0.68rem", padding:"0.25rem 0.5rem", flex:1,
                         display:"flex", alignItems:"center", justifyContent:"center", gap:"0.3rem",
-                        background:  c.bg,
-                        color:       c.text,
-                        borderColor: c.border,
-                        transition:  "all 0.15s ease",
+                        background: c.bg, color: c.text, borderColor: c.border,
+                        transition: "all 0.15s ease",
                       }}>
                       {opt.label}
                     </button>
                   );
                 })}
               </div>
-
             </div>
           )}
 
@@ -625,23 +612,16 @@ setPostos(filtered);
 
       {/* ── POPUP DOAR ── */}
       {doarOpen && (
-        <div
-          onClick={() => setDoarOpen(false)}
-          style={{
-            position:"fixed", inset:0, zIndex:200,
-            background:"rgba(0,0,0,0.55)", backdropFilter:"blur(3px)",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            padding:"1rem",
+        <div onClick={() => setDoarOpen(false)} style={{
+          position:"fixed", inset:0, zIndex:200,
+          background:"rgba(0,0,0,0.55)", backdropFilter:"blur(3px)",
+          display:"flex", alignItems:"center", justifyContent:"center", padding:"1rem",
+        }}>
+          <div onClick={e => e.stopPropagation()} className="card" style={{
+            maxWidth:480, width:"100%",
+            padding:"1.5rem", display:"flex", flexDirection:"column", gap:"1rem",
+            maxHeight:"90vh", overflowY:"auto",
           }}>
-          <div
-            onClick={e => e.stopPropagation()}
-            className="card"
-            style={{
-              maxWidth:480, width:"100%",
-              padding:"1.5rem", display:"flex", flexDirection:"column", gap:"1rem",
-              maxHeight:"90vh", overflowY:"auto",
-            }}>
-
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <span style={{ fontWeight:700, fontSize:"0.95rem" }}>Apoiar o projeto 💚</span>
               <button onClick={() => setDoarOpen(false)} style={{
@@ -649,7 +629,6 @@ setPostos(filtered);
                 color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1,
               }}>✕</button>
             </div>
-
             <p style={{ fontSize:"0.78rem", lineHeight:1.6, color:"var(--text)", margin:0 }}>
               Esta aplicação é completamente gratuita e não tem qualquer publicidade, é apenas
               carregada de boa vontade! Se queres ajudar-me a manter este projeto, tens algumas
@@ -659,7 +638,6 @@ setPostos(filtered);
                 zirgolina@tuta.io
               </a>.
             </p>
-
             {CRIPTO.map(({ label, addr }) => (
               <div key={label} style={{ display:"flex", flexDirection:"column", gap:"0.3rem" }}>
                 <p className="field-label" style={{ margin:0 }}>{label}</p>
@@ -674,16 +652,12 @@ setPostos(filtered);
                   }}>
                     {addr}
                   </span>
-                  <button
-                    onClick={() => handleCopy(addr)}
-                    title="Copiar"
-                    style={{
-                      background:"none", border:"none", cursor:"pointer",
-                      color: copiedAddr === addr ? "var(--accent)" : "var(--text-muted)",
-                      flexShrink:0, padding:"0.1rem",
-                      display:"flex", alignItems:"center",
-                      transition:"color 0.2s",
-                    }}>
+                  <button onClick={() => handleCopy(addr)} title="Copiar" style={{
+                    background:"none", border:"none", cursor:"pointer",
+                    color: copiedAddr === addr ? "var(--accent)" : "var(--text-muted)",
+                    flexShrink:0, padding:"0.1rem",
+                    display:"flex", alignItems:"center", transition:"color 0.2s",
+                  }}>
                     {copiedAddr === addr ? (
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -700,7 +674,6 @@ setPostos(filtered);
                 </div>
               </div>
             ))}
-
           </div>
         </div>
       )}

@@ -10,6 +10,7 @@ interface Props {
   onConcelhoClick?:    (distritoId: string, concelhoNome: string) => void;
   mostrarPins:         boolean;
   mostrarPinsDistrito: boolean;
+  invalidateRef?:      React.MutableRefObject<(() => void) | null>;
   flyRef?: React.MutableRefObject<{
     flyToDistrito: (id: string) => void;
     flyToConcelho: (distritoId: string, concelhoNome: string) => void;
@@ -18,7 +19,6 @@ interface Props {
 
 const DISTRITOS_URL  = "/distritos.geojson";
 const MUNICIPIOS_URL = "/municipios.geojson";
-
 const PT_BOUNDS = { minLat: 29.0, maxLat: 42.2, minLng: -31.3, maxLng: -6.1 };
 
 const NOME_PARA_ID: Record<string, string> = {
@@ -31,26 +31,15 @@ const NOME_PARA_ID: Record<string, string> = {
 };
 
 const MARCA_CORES: Record<string, string> = {
-  "ALVES BANDEIRA": "#1D6FA4",
-  "AUCHAN":         "#E2001A",
-  "BP":             "#006F3C",
-  "CEPSA":          "#E2001A",
-  "GALP":           "#FF6B00",
-  "INTERMARCHÉ":    "#888888",
-  "LECLERC":        "#1D6FA4",
-  "MOEVE":          "#1D6FA4",
-  "NOVA":           "#1D6FA4",
-  "OZ ENERGIA":     "#1D6FA4",
-  "PINGO DOCE":     "#006F3C",
-  "PRIO":           "#1D6FA4",
-  "REPSOL":         "#C45000",
-  "SHELL":          "#C8960C",
+  "ALVES BANDEIRA":"#1D6FA4","AUCHAN":"#E2001A","BP":"#006F3C",
+  "CEPSA":"#E2001A","GALP":"#FF6B00","INTERMARCHÉ":"#888888",
+  "LECLERC":"#1D6FA4","MOEVE":"#1D6FA4","NOVA":"#1D6FA4",
+  "OZ ENERGIA":"#1D6FA4","PINGO DOCE":"#006F3C","PRIO":"#1D6FA4",
+  "REPSOL":"#C45000","SHELL":"#C8960C",
 };
 
 function getMarcaCor(marca: string): string {
-  const key = Object.keys(MARCA_CORES).find(k =>
-    marca.toUpperCase().includes(k)
-  );
+  const key = Object.keys(MARCA_CORES).find(k => marca.toUpperCase().includes(k));
   return key ? MARCA_CORES[key] : "#22c55e";
 }
 
@@ -88,7 +77,7 @@ async function fetchGeoJSON(url: string) {
 
 export default function MapView({
   postos, onBoundsChange, onDistritoClick, onConcelhoClick,
-  mostrarPins, mostrarPinsDistrito, flyRef,
+  mostrarPins, mostrarPinsDistrito, flyRef, invalidateRef,
 }: Props) {
   const mapRef        = useRef<any>(null);
   const clusterRef    = useRef<any>(null);
@@ -108,11 +97,9 @@ export default function MapView({
   // ── Init mapa ──
   useEffect(() => {
     if (typeof window === "undefined" || mapRef.current) return;
-
     (async () => {
       const L = (await import("leaflet")).default;
       await import("leaflet/dist/leaflet.css");
-
       if (!containerRef.current) return;
       if ((containerRef.current as any)._leaflet_id) return;
 
@@ -126,6 +113,13 @@ export default function MapView({
 
       mapRef.current = map;
 
+      // Expõe invalidateSize para o exterior (fix mobile modal)
+      if (invalidateRef) {
+        invalidateRef.current = () => {
+          setTimeout(() => map.invalidateSize(), 150);
+        };
+      }
+
       await import("leaflet.markercluster");
       // @ts-ignore
       clusterRef.current = L.markerClusterGroup({
@@ -135,7 +129,7 @@ export default function MapView({
       mapReadyRef.current = true;
 
       const sD  = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
-      const sDH = { fillOpacity: 0.2,  weight: 2.2 };
+      const sDH = { fillOpacity: 0.2, weight: 2.2 };
       const sM  = { color: "#22c55e", weight: 0.8, fillColor: "#22c55e", fillOpacity: 0.03 };
       const sMH = { fillOpacity: 0.14, weight: 1.4 };
 
@@ -193,10 +187,10 @@ export default function MapView({
         municipiosRef.current = L.geoJSON(geojson, {
           style: () => ({ ...sM }),
           onEachFeature(feature: any, layer: any) {
-            const p        = feature.properties ?? {};
-            const conNome  = (p.con_name ?? p.name ?? "") as string;
-            const disNome  = (p.dis_name ?? "") as string;
-            const disCode  = (p.dis_code ?? "") as string;
+            const p         = feature.properties ?? {};
+            const conNome   = (p.con_name ?? p.name ?? "") as string;
+            const disNome   = (p.dis_name ?? "") as string;
+            const disCode   = (p.dis_code ?? "") as string;
             const distritoId = disCode
               ? disCodeToDgeg(disCode)
               : getDistritoId(disNome) ?? "";
@@ -239,16 +233,16 @@ export default function MapView({
         function syncLayers() {
           const z = map.getZoom();
           if (mostrarPinsDistritoRef.current) {
-            if (municipiosRef.current && map.hasLayer(municipiosRef.current))  map.removeLayer(municipiosRef.current);
-            if (distritosRef.current  && !map.hasLayer(distritosRef.current))  map.addLayer(distritosRef.current);
+            if (municipiosRef.current && map.hasLayer(municipiosRef.current)) map.removeLayer(municipiosRef.current);
+            if (distritosRef.current  && !map.hasLayer(distritosRef.current)) map.addLayer(distritosRef.current);
             return;
           }
           if (z >= 9) {
             if (distritosRef.current  && map.hasLayer(distritosRef.current))  map.removeLayer(distritosRef.current);
             if (municipiosRef.current && !map.hasLayer(municipiosRef.current)) map.addLayer(municipiosRef.current);
           } else {
-            if (municipiosRef.current && map.hasLayer(municipiosRef.current))  map.removeLayer(municipiosRef.current);
-            if (distritosRef.current  && !map.hasLayer(distritosRef.current))  map.addLayer(distritosRef.current);
+            if (municipiosRef.current && map.hasLayer(municipiosRef.current)) map.removeLayer(municipiosRef.current);
+            if (distritosRef.current  && !map.hasLayer(distritosRef.current)) map.addLayer(distritosRef.current);
           }
         }
         map.on("zoomend", syncLayers);
@@ -262,28 +256,16 @@ export default function MapView({
     })();
   }, []);
 
-  // ── Invalidate size quando o container fica visível (mobile modal) ──
-  useEffect(() => {
-    if (!mapRef.current) return;
-    const timer = setTimeout(() => {
-      mapRef.current?.invalidateSize();
-    }, 100);
-    return () => clearTimeout(timer);
-  });
-
   // ── Pins ──
   useEffect(() => {
     if (!mapRef.current) return;
-
     const tryAdd = (retries = 20) => {
       if (!mapReadyRef.current || !clusterRef.current) {
         if (retries > 0) setTimeout(() => tryAdd(retries - 1), 200);
         return;
       }
-
       (async () => {
         const L = (await import("leaflet")).default;
-
         if (mapRef.current.hasLayer(clusterRef.current))
           mapRef.current.removeLayer(clusterRef.current);
         if (!mostrarPins || postos.length === 0) return;
@@ -293,16 +275,13 @@ export default function MapView({
 
         postos.forEach(posto => {
           if (posto.lat === null || posto.lng === null) return;
-
           if (
             posto.lat < PT_BOUNDS.minLat || posto.lat > PT_BOUNDS.maxLat ||
             posto.lng < PT_BOUNDS.minLng || posto.lng > PT_BOUNDS.maxLng
           ) return;
-
           if (posto.distrito && !coordsDentroDeDistrito(posto.lat, posto.lng, posto.distrito)) return;
 
           const marcaCor = getMarcaCor(posto.marca ?? "");
-
           const icon = L.divIcon({
             className: "",
             html: `<div style="width:14px;height:14px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
@@ -327,23 +306,12 @@ export default function MapView({
   </p>
   <p style="font-size:0.72rem;color:#888;margin:0 0 6px">${posto.localidade}</p>
   ${combsHtml}
-  <a
-    href="${posto.lat && posto.lng
-      ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", "))}`
-    }"
-    target="_blank"
-    rel="noopener noreferrer"
-    style="
-      display:inline-flex;align-items:center;gap:0.3rem;
-      margin-top:8px;padding:4px 10px;
-      border:1px solid #d1d5db;border-radius:6px;
-      font-size:0.67rem;font-weight:500;color:#555;
-      text-decoration:none;
-    "
-  >
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <a href="${posto.lat && posto.lng
+    ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", "))}`
+  }" target="_blank" rel="noopener noreferrer"
+    style="display:inline-flex;align-items:center;gap:0.3rem;margin-top:8px;padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.67rem;font-weight:500;color:#555;text-decoration:none;">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <polygon points="3 11 22 2 13 21 11 13 3 11"/>
     </svg>
     Direções
@@ -357,7 +325,6 @@ export default function MapView({
         if (bounds.length) mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
       })();
     };
-
     tryAdd();
   }, [postos, mostrarPins]);
 

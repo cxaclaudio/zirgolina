@@ -7,8 +7,8 @@ const inter       = Inter({ subsets: ["latin"], variable: "--font-inter", displa
 const plusJakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-plus-jakarta", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Zirgolina — preços de combustível",
-  description: "Postos GALP, BP, SHELL, PRIO e mais. Preços reais DGEG.",
+  title: "Zirgolina — Encontra o combustível mais barato!",
+  description: "Filtra pela tua zona. Encontra o preço mais baixo! Apenas Portugal Continental.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
