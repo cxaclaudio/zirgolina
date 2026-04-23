@@ -400,13 +400,20 @@ export default function Home() {
             </button>
 
             {/* Calculadora — só emoji */}
-            <button onClick={() => { setCalcOpen(true); setMapaOpen(false); }} style={{
-              background:"transparent", color:"var(--text-muted)",
-              border:"1px solid var(--border)", borderRadius:"0.6rem",
-              padding:"0.35rem 0.6rem", fontSize:"0.9rem", cursor:"pointer",
-            }}>
-              ⛽
-            </button>
+<button onClick={() => { setCalcOpen(true); setMapaOpen(false); }} style={{
+  background:"transparent", color:"var(--text-muted)",
+  border:"1px solid var(--border)", borderRadius:"0.6rem",
+  padding:"0.35rem 0.6rem", cursor:"pointer",
+  display:"flex", alignItems:"center",
+}}>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="2" width="16" height="20" rx="2"/>
+    <line x1="8" y1="6" x2="16" y2="6"/>
+    <line x1="8" y1="10" x2="16" y2="10"/>
+    <line x1="8" y1="14" x2="12" y2="14"/>
+  </svg>
+</button>
 
             {/* Doar */}
             {doarBtn}
@@ -417,8 +424,8 @@ export default function Home() {
           </div>
 
           {/* Botões desktop */}
-          {doarBtn}
-          <div className="desktop-only" style={{ display:"flex" }}>
+          <div className="desktop-only" style={{ display:"flex", gap:"0.5rem"}}>
+		    {doarBtn}
             {themeBtn}
           </div>
 
