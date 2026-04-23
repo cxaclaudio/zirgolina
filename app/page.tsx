@@ -265,6 +265,56 @@ export default function Home() {
     { label: "⬇ GPL",      value: "gpl_asc"       },
   ] as const;
 
+  const themeBtn = (
+    <button onClick={toggle} style={{
+      background:"transparent",
+      color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
+      border: dark ? "1px solid rgba(255,255,255,0.15)" : "1px solid var(--border)",
+      borderRadius:"0.6rem", padding:"0.35rem 0.6rem",
+      cursor:"pointer", display:"flex", alignItems:"center",
+    }}>
+      {dark ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4"/>
+          <line x1="12" y1="2"  x2="12" y2="5"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+          <line x1="4.22"  y1="4.22"  x2="6.34"  y2="6.34"/>
+          <line x1="17.66" y1="17.66" x2="19.78" y2="19.78"/>
+          <line x1="2"  y1="12" x2="5"  y2="12"/>
+          <line x1="19" y1="12" x2="22" y2="12"/>
+          <line x1="4.22"  y1="19.78" x2="6.34"  y2="17.66"/>
+          <line x1="17.66" y1="6.34"  x2="19.78" y2="4.22"/>
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+        </svg>
+      )}
+    </button>
+  );
+
+  const doarBtn = (
+    <button onClick={() => setDoarOpen(true)} style={{
+      background:"transparent",
+      color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
+      border: dark ? "1px solid rgba(255,255,255,0.15)" : "1px solid var(--border)",
+      borderRadius:"0.6rem", padding:"0.35rem 0.6rem",
+      cursor:"pointer", display:"flex", alignItems:"center", gap:"0.4rem",
+      fontSize:"0.72rem", fontWeight:500,
+    }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
+        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+        <line x1="6" y1="1" x2="6" y2="4"/>
+        <line x1="10" y1="1" x2="10" y2="4"/>
+        <line x1="14" y1="1" x2="14" y2="4"/>
+      </svg>
+    </button>
+  );
+
   const MapViewNode = (
     <MapView
       postos={sortedPostos}
@@ -287,6 +337,7 @@ export default function Home() {
           .filtros-col { order: 0; }
           .mobile-actions { display: flex !important; }
           .desktop-only { display: none !important; }
+          .calc-sidebar { display: none !important; }
         }
         @media (min-width: 901px) {
           .mobile-actions { display: none !important; }
@@ -306,7 +357,7 @@ export default function Home() {
         }}>
 
           {/* Logo */}
-			<div style={{ display:"flex", alignItems:"center", height:HEADER_H }}>
+          <div style={{ display:"flex", alignItems:"center", height:HEADER_H }}>
             <img
               src={dark ? "/logo-dark.png" : "/logo-light.png"}
               alt="Zirgolina"
@@ -331,6 +382,8 @@ export default function Home() {
 
           {/* Botões mobile */}
           <div className="mobile-actions" style={{ gap:"0.5rem" }}>
+
+            {/* Mapa */}
             <button onClick={() => { setMapaOpen(true); setCalcOpen(false); }} style={{
               background:"var(--accent)", color:"#fff",
               border:"none", borderRadius:"0.6rem",
@@ -345,71 +398,29 @@ export default function Home() {
               </svg>
               Mapa
             </button>
+
+            {/* Calculadora — só emoji */}
             <button onClick={() => { setCalcOpen(true); setMapaOpen(false); }} style={{
               background:"transparent", color:"var(--text-muted)",
               border:"1px solid var(--border)", borderRadius:"0.6rem",
-              padding:"0.35rem 0.7rem", fontSize:"0.72rem", fontWeight:600, cursor:"pointer",
-              display:"flex", alignItems:"center", gap:"0.3rem",
+              padding:"0.35rem 0.6rem", fontSize:"0.9rem", cursor:"pointer",
             }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4" y="2" width="16" height="20" rx="2"/>
-                <line x1="8" y1="6" x2="16" y2="6"/>
-                <line x1="8" y1="10" x2="16" y2="10"/>
-                <line x1="8" y1="14" x2="12" y2="14"/>
-              </svg>
-              Calculadora
+              ⛽
             </button>
+
+            {/* Doar */}
+            {doarBtn}
+
+            {/* Tema */}
+            {themeBtn}
+
           </div>
 
-          {/* Botão Doar */}
-          <button onClick={() => setDoarOpen(true)} style={{
-            background:"transparent",
-            color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
-            border: dark ? "1px solid rgba(255,255,255,0.15)" : "1px solid var(--border)",
-            borderRadius:"0.6rem", padding:"0.35rem 0.6rem",
-            cursor:"pointer", display:"flex", alignItems:"center", gap:"0.4rem",
-            fontSize:"0.72rem", fontWeight:500,
-          }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
-              <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
-              <line x1="6" y1="1" x2="6" y2="4"/>
-              <line x1="10" y1="1" x2="10" y2="4"/>
-              <line x1="14" y1="1" x2="14" y2="4"/>
-            </svg>
-          </button>
-
-          {/* Toggle tema — desktop */}
-          <button className="desktop-only" onClick={toggle} style={{
-            background:"transparent",
-            color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
-            border: dark ? "1px solid rgba(255,255,255,0.15)" : "1px solid var(--border)",
-            borderRadius:"0.6rem", padding:"0.35rem 0.6rem",
-            cursor:"pointer", display:"flex", alignItems:"center",
-            fontSize:"0.72rem", fontWeight:500,
-          }}>
-            {dark ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="4"/>
-                <line x1="12" y1="2"  x2="12" y2="5"/>
-                <line x1="12" y1="19" x2="12" y2="22"/>
-                <line x1="4.22"  y1="4.22"  x2="6.34"  y2="6.34"/>
-                <line x1="17.66" y1="17.66" x2="19.78" y2="19.78"/>
-                <line x1="2"  y1="12" x2="5"  y2="12"/>
-                <line x1="19" y1="12" x2="22" y2="12"/>
-                <line x1="4.22"  y1="19.78" x2="6.34"  y2="17.66"/>
-                <line x1="17.66" y1="6.34"  x2="19.78" y2="4.22"/>
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
-              </svg>
-            )}
-          </button>
+          {/* Botões desktop */}
+          {doarBtn}
+          <div className="desktop-only" style={{ display:"flex" }}>
+            {themeBtn}
+          </div>
 
         </div>
       </header>
@@ -476,71 +487,69 @@ export default function Home() {
             </div>
           )}
 
-{postos.length > 0 && (
-  <div style={{ display:"flex", flexDirection:"column", gap:"0.35rem" }}>
+          {postos.length > 0 && (
+            <div style={{ display:"flex", flexDirection:"column", gap:"0.35rem" }}>
 
-    {/* Mín / Média / Máx */}
-    <div style={{ display:"flex", gap:"0.3rem" }}>
-      {[
-        { l:"Mín",   v: minP ? minP.toFixed(3) : "—", color:"var(--accent)" },
-        { l:"Média", v: precosVisiveis.length
-          ? (precosVisiveis.reduce((a,b) => a+b) / precosVisiveis.length).toFixed(3) : "—",
-          color:"#C8960C" },
-        { l:"Máx",   v: precosVisiveis.length
-          ? Math.max(...precosVisiveis).toFixed(3) : "—", color:"#ef4444" },
-      ].map(s => (
-        <div key={s.l} className="card"
-          style={{ padding:"0.25rem 0.5rem", textAlign:"center", flex:1 }}>
-          <p style={{ fontWeight:800, fontSize:"0.75rem", color: s.color }}>{s.v}</p>
-          <p className="text-muted" style={{ fontSize:"0.5rem", marginTop:1 }}>{s.l}</p>
-        </div>
-      ))}
-    </div>
+              {/* Mín / Média / Máx */}
+              <div style={{ display:"flex", gap:"0.3rem" }}>
+                {[
+                  { l:"Mín",   v: minP ? minP.toFixed(3) : "—", color:"var(--accent)" },
+                  { l:"Média", v: precosVisiveis.length
+                    ? (precosVisiveis.reduce((a,b) => a+b) / precosVisiveis.length).toFixed(3) : "—",
+                    color:"#C8960C" },
+                  { l:"Máx",   v: precosVisiveis.length
+                    ? Math.max(...precosVisiveis).toFixed(3) : "—", color:"#ef4444" },
+                ].map(s => (
+                  <div key={s.l} className="card"
+                    style={{ padding:"0.25rem 0.5rem", textAlign:"center", flex:1 }}>
+                    <p style={{ fontWeight:800, fontSize:"0.75rem", color: s.color }}>{s.v}</p>
+                    <p className="text-muted" style={{ fontSize:"0.5rem", marginTop:1 }}>{s.l}</p>
+                  </div>
+                ))}
+              </div>
 
-    {/* Botões ordenação */}
-    <div style={{ display:"flex", gap:"0.3rem" }}>
-      {SORT_BTNS.map(opt => {
-        const active = ordenacao === opt.value;
+              {/* Botões ordenação */}
+              <div style={{ display:"flex", gap:"0.3rem" }}>
+                {SORT_BTNS.map(opt => {
+                  const active = ordenacao === opt.value;
+                  const colors: Record<string, { bg: string; border: string; text: string }> = {
+                    gasolina_asc: {
+                      bg:     active ? "var(--accent)"                : "transparent",
+                      border: active ? "var(--accent)"                : "var(--border)",
+                      text:   active ? "#fff"                         : "var(--text-muted)",
+                    },
+                    gasoleo_asc: {
+                      bg:     active ? (dark ? "#ffffff" : "#000000") : "transparent",
+                      border: active ? (dark ? "#ffffff" : "#000000") : "var(--border)",
+                      text:   active ? (dark ? "#000000" : "#ffffff") : "var(--text-muted)",
+                    },
+                    gpl_asc: {
+                      bg:     active ? "#00A8FF"                      : "transparent",
+                      border: active ? "#00A8FF"                      : "var(--border)",
+                      text:   active ? "#ffffff"                      : "var(--text-muted)",
+                    },
+                  };
+                  const c = colors[opt.value];
+                  return (
+                    <button key={opt.value} onClick={() => setOrdenacao(opt.value)}
+                      className="btn-ghost"
+                      style={{
+                        fontSize:"0.68rem", padding:"0.25rem 0.5rem",
+                        flex:1,
+                        display:"flex", alignItems:"center", justifyContent:"center", gap:"0.3rem",
+                        background:  c.bg,
+                        color:       c.text,
+                        borderColor: c.border,
+                        transition:  "all 0.15s ease",
+                      }}>
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
 
-        const colors: Record<string, { bg: string; border: string; text: string }> = {
-          gasolina_asc: {
-            bg:     active ? "var(--accent)"                    : "transparent",
-            border: active ? "var(--accent)"                    : "var(--border)",
-            text:   active ? "#fff"                             : "var(--text-muted)",
-          },
-          gasoleo_asc: {
-            bg:     active ? (dark ? "#ffffff" : "#000000")     : "transparent",
-            border: active ? (dark ? "#ffffff" : "#000000")     : "var(--border)",
-            text:   active ? (dark ? "#000000" : "#ffffff")     : "var(--text-muted)",
-          },
-          gpl_asc: {
-            bg:     active ? "#00A8FF"                          : "transparent",
-            border: active ? "#00A8FF"                          : "var(--border)",
-            text:   active ? "#ffffff"                          : "var(--text-muted)",
-          },
-        };
-
-        const c = colors[opt.value];
-        return (
-          <button key={opt.value} onClick={() => setOrdenacao(opt.value)}
-            className="btn-ghost"
-            style={{
-              fontSize:"0.68rem", padding:"0.25rem 0.5rem",
-              flex:1,
-              display:"flex", alignItems:"center", justifyContent:"center", gap:"0.3rem",
-              background:  c.bg,
-              color:       c.text,
-              borderColor: c.border,
-              transition:  "all 0.15s ease",
-            }}>
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-
-  </div>
-)}
+            </div>
+          )}
 
           {error && (
             <div className="card" style={{ padding:"0.65rem", color:"#f87171", fontSize:"0.73rem" }}>
