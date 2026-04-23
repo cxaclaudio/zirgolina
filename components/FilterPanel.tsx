@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useTheme } from "@/components/ThemeProvider";
 import { ALLOWED_MARCAS } from "@/lib/dgeg";
 
@@ -43,22 +43,31 @@ export default function FilterPanel({
 
   const monoColor = dark ? "#ffffff" : "#000000";
 
+  // ── Sincronização com props externas (mapa → FilterPanel) ──
+
   useEffect(() => {
     if (!precoCalc && cheapestPrice) setPrecoCalc(cheapestPrice.toFixed(3));
   }, [cheapestPrice]);
 
+  // 1. Quando o distrito muda externamente (clique no mapa)
   useEffect(() => {
     if (distritoAtivo === idDistrito) return;
     setIdDistrito(distritoAtivo);
+    setIdMunicipio(""); // reset concelho ao mudar distrito
   }, [distritoAtivo]);
 
+  // 2. Quando o concelho muda externamente (clique no mapa)
   useEffect(() => {
     if (municipioAtivo === idMunicipio) return;
     setIdMunicipio(municipioAtivo);
   }, [municipioAtivo]);
 
+  // 3. Quando os municípios carregam de forma assíncrona e há um municipioAtivo à espera
+  //    (essencial em mobile — o fetch pode demorar mais que a propagação do estado)
   useEffect(() => {
-    if (municipioAtivo && municipios.length > 0) setIdMunicipio(municipioAtivo);
+    if (!municipioAtivo || municipios.length === 0) return;
+    const existe = municipios.some((m: Municipio) => String(m.Id) === municipioAtivo);
+    if (existe) setIdMunicipio(municipioAtivo);
   }, [municipios, municipioAtivo]);
 
   const vals = useCallback(

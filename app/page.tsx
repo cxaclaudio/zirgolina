@@ -183,7 +183,7 @@ export default function Home() {
 
     if (concelhoMudou && f.idMunicipio && f.idDistrito) {
       ignoreMapClicksRef.current = true;
-      setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
+      setTimeout(() => { ignoreMapClicksRef.current = false; }, 800);
       getMunicipios(Number(f.idDistrito)).then(lista => {
         const m = (lista as any[]).find(x => String(x.Id) === f.idMunicipio);
         if (m) flyToConcelho(f.idDistrito, m.Descritivo);
@@ -199,7 +199,7 @@ export default function Home() {
     filtersRef.current = f;
     // Bloqueia clicks do mapa enquanto o flyTo anima
     ignoreMapClicksRef.current = true;
-    setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
+    setTimeout(() => { ignoreMapClicksRef.current = false; }, 800);
     fetchPostos(f);
   }, [fetchPostos]);
 
