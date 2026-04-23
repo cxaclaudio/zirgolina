@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useCallback, useRef, useState, useEffect  } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getMunicipios, type Posto } from "@/lib/dgeg";
 import FilterPanel, { type FilterValues } from "@/components/FilterPanel";
 import PostoCard from "@/components/PostoCard";
@@ -66,17 +66,18 @@ export default function Home() {
   const [doarOpen,       setDoarOpen]       = useState(false);
   const [copiedAddr,     setCopiedAddr]     = useState<string | null>(null);
 
-  // ── Refs separados para desktop e mobile ──
-  const mapFlyRefDesktop      = useRef<{ flyToDistrito:(id:string)=>void; flyToConcelho:(dId:string,cNome:string)=>void } | null>(null);
-  const mapFlyRefMobile       = useRef<{ flyToDistrito:(id:string)=>void; flyToConcelho:(dId:string,cNome:string)=>void } | null>(null);
+  const mapFlyRefDesktop        = useRef<{ flyToDistrito:(id:string)=>void; flyToConcelho:(dId:string,cNome:string)=>void } | null>(null);
+  const mapFlyRefMobile         = useRef<{ flyToDistrito:(id:string)=>void; flyToConcelho:(dId:string,cNome:string)=>void } | null>(null);
   const mapInvalidateRefDesktop = useRef<(()=>void)|null>(null);
   const mapInvalidateRefMobile  = useRef<(()=>void)|null>(null);
+
+  // ── Flag para ignorar clicks do mapa durante flyTo programático ──
+  const ignoreMapClicksRef = useRef(false);
 
   const filtersRef = useRef<FilterValues>({
     fuelId: "3201", idDistrito: "", idMunicipio: "", marcaId: "", search: "",
   });
 
-  // helper — chama fly nas duas instâncias (a que estiver montada responde)
   const flyToDistrito = useCallback((id: string) => {
     mapFlyRefDesktop.current?.flyToDistrito(id);
     mapFlyRefMobile.current?.flyToDistrito(id);
@@ -113,7 +114,6 @@ export default function Home() {
       if (!json.ok) throw new Error(json.error ?? "Erro desconhecido");
 
       const filtered = (json.data as Posto[]).filter(p => {
-   //     if (!p.marca || p.marca.toLowerCase() === "genérico" || p.marca.toLowerCase() === "generico") return false;
         if (p.preco !== null && p.preco <= 0) return false;
         if (f.idDistrito && p.lat !== null && p.lng !== null) {
           const db = DISTRITO_BOUNDS[f.idDistrito];
@@ -135,6 +135,7 @@ export default function Home() {
   }
 
   const handleDistritoClick = useCallback((nome: string, id?: string) => {
+    if (ignoreMapClicksRef.current) return; // ← ignora clicks durante flyTo
     const newF: FilterValues = {
       ...filtersRef.current, fuelId, idDistrito: id ?? "", idMunicipio: "",
     };
@@ -149,6 +150,7 @@ export default function Home() {
   }, [fetchPostos, fuelId]);
 
   const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
+    if (ignoreMapClicksRef.current) return; // ← ignora clicks durante flyTo
     let concelhoId = "";
     try {
       const lista = await getMunicipios(Number(distritoId));
@@ -180,35 +182,51 @@ export default function Home() {
     setMunicipioAtivo(f.idMunicipio);
 
     if (concelhoMudou && f.idMunicipio && f.idDistrito) {
+      ignoreMapClicksRef.current = true;
+      setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
       getMunicipios(Number(f.idDistrito)).then(lista => {
         const m = (lista as any[]).find(x => String(x.Id) === f.idMunicipio);
         if (m) flyToConcelho(f.idDistrito, m.Descritivo);
       });
     } else if (distritoMudou && f.idDistrito) {
+      ignoreMapClicksRef.current = true;
+      setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
       flyToDistrito(f.idDistrito);
     }
   }, [flyToDistrito, flyToConcelho]);
 
   const handleSearch = useCallback((f: FilterValues) => {
     filtersRef.current = f;
+    // Bloqueia clicks do mapa enquanto o flyTo anima
+    ignoreMapClicksRef.current = true;
+    setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
     fetchPostos(f);
   }, [fetchPostos]);
 
-useEffect(() => {
-  if (!mapaOpen) return;
-  const t = setTimeout(() => {
-    mapInvalidateRefMobile.current?.();
-    if (municipioAtivo && distritoAtivo) {
-      getMunicipios(Number(distritoAtivo)).then(lista => {
-        const m = (lista as any[]).find(x => String(x.Id) === municipioAtivo);
-        if (m) mapFlyRefMobile.current?.flyToConcelho(distritoAtivo, m.Descritivo);
-      });
-    } else if (distritoAtivo) {
-      mapFlyRefMobile.current?.flyToDistrito(distritoAtivo);
-    }
-  }, 180);
-  return () => clearTimeout(t);
-}, [mapaOpen, distritoAtivo, municipioAtivo]);
+  // ── Sincroniza mapa mobile quando abre ──
+  useEffect(() => {
+    if (!mapaOpen) return;
+    let attempts = 0;
+    const tryFly = () => {
+      attempts++;
+      mapInvalidateRefMobile.current?.();
+      const flyRef = mapFlyRefMobile.current;
+      if (!flyRef) {
+        if (attempts < 15) setTimeout(tryFly, 200);
+        return;
+      }
+      if (municipioAtivo && distritoAtivo) {
+        getMunicipios(Number(distritoAtivo)).then(lista => {
+          const m = (lista as any[]).find(x => String(x.Id) === municipioAtivo);
+          if (m) mapFlyRefMobile.current?.flyToConcelho(distritoAtivo, m.Descritivo);
+        });
+      } else if (distritoAtivo) {
+        flyRef.flyToDistrito(distritoAtivo);
+      }
+    };
+    const t = setTimeout(tryFly, 250);
+    return () => clearTimeout(t);
+  }, [mapaOpen, distritoAtivo, municipioAtivo]);
 
   function handleCopy(addr: string) {
     navigator.clipboard.writeText(addr);
@@ -265,7 +283,6 @@ useEffect(() => {
     { label: "⬇ GPL",      value: "gpl_asc"       },
   ] as const;
 
-  // Props comuns para os dois MapView
   const mapProps = {
     postos: sortedPostos,
     onDistritoClick: handleDistritoClick,
@@ -582,34 +599,37 @@ useEffect(() => {
         </div>
       </div>
 
-{/* ── MODAL MAPA (mobile) — sempre montado no DOM ── */}
-<div style={{
-  position:"fixed", inset:0, zIndex:100,
-  background:"var(--bg)", display:"flex", flexDirection:"column",
-  opacity:        mapaOpen ? 1 : 0,
-  pointerEvents:  mapaOpen ? "auto" : "none",
-  transition:     "opacity 0.15s ease",
-}}>
-  <div style={{
-    display:"flex", alignItems:"center", justifyContent:"space-between",
-    padding:"0 1rem", height:HEADER_H,
-    borderBottom:"1px solid var(--border)", flexShrink:0,
-  }}>
-    <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Mapa</span>
-    <button onClick={() => setMapaOpen(false)} style={{
-      background:"none", border:"none", cursor:"pointer",
-      color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
-    }}>✕</button>
-  </div>
-  <div style={{ flex:1, overflow:"hidden" }}>
-    <MapView
-      key="mobile"
-      {...mapProps}
-      flyRef={mapFlyRefMobile}
-      invalidateRef={mapInvalidateRefMobile}
-    />
-  </div>
-</div>
+      {/* ── MODAL MAPA (mobile) — sempre montado no DOM ── */}
+      <div style={{
+        position:"fixed",
+        top:    mapaOpen ? 0 : "100vh",
+        left:   0, right: 0,
+        bottom: mapaOpen ? 0 : "-100vh",
+        zIndex: 100,
+        background:"var(--bg)", display:"flex", flexDirection:"column",
+        transition: "top 0.2s ease, bottom 0.2s ease",
+        pointerEvents: mapaOpen ? "auto" : "none",
+      }}>
+        <div style={{
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          padding:"0 1rem", height:HEADER_H,
+          borderBottom:"1px solid var(--border)", flexShrink:0,
+        }}>
+          <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Mapa</span>
+          <button onClick={() => setMapaOpen(false)} style={{
+            background:"none", border:"none", cursor:"pointer",
+            color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
+          }}>✕</button>
+        </div>
+        <div style={{ flex:1, overflow:"hidden" }}>
+          <MapView
+            key="mobile"
+            {...mapProps}
+            flyRef={mapFlyRefMobile}
+            invalidateRef={mapInvalidateRefMobile}
+          />
+        </div>
+      </div>
 
       {/* ── MODAL CALCULADORA (mobile) ── */}
       {calcOpen && (
