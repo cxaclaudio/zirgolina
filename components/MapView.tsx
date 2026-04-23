@@ -105,6 +105,7 @@ export default function MapView({
   useEffect(() => { cbConcelho.current = onConcelhoClick; }, [onConcelhoClick]);
   useEffect(() => { mostrarPinsDistritoRef.current = mostrarPinsDistrito; }, [mostrarPinsDistrito]);
 
+  // ── Init mapa ──
   useEffect(() => {
     if (typeof window === "undefined" || mapRef.current) return;
 
@@ -260,6 +261,15 @@ export default function MapView({
       });
     })();
   }, []);
+
+  // ── Invalidate size quando o container fica visível (mobile modal) ──
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const timer = setTimeout(() => {
+      mapRef.current?.invalidateSize();
+    }, 100);
+    return () => clearTimeout(timer);
+  });
 
   // ── Pins ──
   useEffect(() => {
