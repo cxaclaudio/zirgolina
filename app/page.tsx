@@ -311,20 +311,26 @@ setPostos(filtered);
   return (
     <div style={{ minHeight:"100vh", background:"var(--bg)" }}>
 
-      <style>{`
-        @media (max-width: 900px) {
-          .main-grid { grid-template-columns: 1fr !important; }
-          .mapa-col  { display: none !important; }
-          .lista-col  { order: 1; }
-          .filtros-col { order: 0; }
-          .mobile-actions { display: flex !important; }
-          .desktop-only { display: none !important; }
-          .calc-sidebar { display: none !important; }
-        }
-        @media (min-width: 901px) {
-          .mobile-actions { display: none !important; }
-        }
-      `}</style>
+<style>{`
+  @media (max-width: 900px) {
+    .main-grid { grid-template-columns: 1fr !important; }
+    .mapa-col  { display: none !important; }
+    .lista-col  { order: 1; }
+    .filtros-col { order: 0; }
+    .mobile-actions { display: flex !important; }
+    .desktop-only { display: none !important; }
+    .calc-sidebar { display: none !important; }
+  }
+  @media (min-width: 901px) {
+    .mobile-actions { display: none !important; }
+    .filtros-col {
+      position: sticky;
+      top: ${HEADER_H + 8}px;
+      max-height: calc(100vh - ${HEADER_H + 24}px);
+      overflow-y: auto;
+    }
+  }
+`}</style>
 
       {/* ── TOPBAR ── */}
       <header style={{
@@ -428,12 +434,7 @@ setPostos(filtered);
       }}>
 
         {/* Col 1 — SIDEBAR filtros */}
-<div className="filtros-col" style={{
-  position: "sticky",
-  top: HEADER_H + 8,
-  maxHeight: `calc(100vh - ${HEADER_H + 24}px)`,
-  overflowY: "auto",
-}}>
+        <div className="filtros-col">
           <FilterPanel
             onChange={handleFilterChange}
             onSearch={handleSearch}
