@@ -66,16 +66,26 @@ export default function Home() {
   const [doarOpen,       setDoarOpen]       = useState(false);
   const [copiedAddr,     setCopiedAddr]     = useState<string | null>(null);
 
-  const mapFlyRef = useRef<{
-    flyToDistrito: (id: string) => void;
-    flyToConcelho: (distritoId: string, concelhoNome: string) => void;
-  } | null>(null);
-
-  const mapInvalidateRef = useRef<(() => void) | null>(null);
+  // ── Refs separados para desktop e mobile ──
+  const mapFlyRefDesktop      = useRef<{ flyToDistrito:(id:string)=>void; flyToConcelho:(dId:string,cNome:string)=>void } | null>(null);
+  const mapFlyRefMobile       = useRef<{ flyToDistrito:(id:string)=>void; flyToConcelho:(dId:string,cNome:string)=>void } | null>(null);
+  const mapInvalidateRefDesktop = useRef<(()=>void)|null>(null);
+  const mapInvalidateRefMobile  = useRef<(()=>void)|null>(null);
 
   const filtersRef = useRef<FilterValues>({
     fuelId: "3201", idDistrito: "", idMunicipio: "", marcaId: "", search: "",
   });
+
+  // helper — chama fly nas duas instâncias (a que estiver montada responde)
+  const flyToDistrito = useCallback((id: string) => {
+    mapFlyRefDesktop.current?.flyToDistrito(id);
+    mapFlyRefMobile.current?.flyToDistrito(id);
+  }, []);
+
+  const flyToConcelho = useCallback((dId: string, cNome: string) => {
+    mapFlyRefDesktop.current?.flyToConcelho(dId, cNome);
+    mapFlyRefMobile.current?.flyToConcelho(dId, cNome);
+  }, []);
 
   const fetchPostos = useCallback(async (f: FilterValues) => {
     const temDistrito  = !!f.idDistrito;
@@ -103,7 +113,7 @@ export default function Home() {
       if (!json.ok) throw new Error(json.error ?? "Erro desconhecido");
 
       const filtered = (json.data as Posto[]).filter(p => {
-        if (!p.marca || p.marca.toLowerCase() === "genérico" || p.marca.toLowerCase() === "generico") return false;
+   //     if (!p.marca || p.marca.toLowerCase() === "genérico" || p.marca.toLowerCase() === "generico") return false;
         if (p.preco !== null && p.preco <= 0) return false;
         if (f.idDistrito && p.lat !== null && p.lng !== null) {
           const db = DISTRITO_BOUNDS[f.idDistrito];
@@ -172,12 +182,12 @@ export default function Home() {
     if (concelhoMudou && f.idMunicipio && f.idDistrito) {
       getMunicipios(Number(f.idDistrito)).then(lista => {
         const m = (lista as any[]).find(x => String(x.Id) === f.idMunicipio);
-        if (m) mapFlyRef.current?.flyToConcelho(f.idDistrito, m.Descritivo);
+        if (m) flyToConcelho(f.idDistrito, m.Descritivo);
       });
     } else if (distritoMudou && f.idDistrito) {
-      mapFlyRef.current?.flyToDistrito(f.idDistrito);
+      flyToDistrito(f.idDistrito);
     }
-  }, []);
+  }, [flyToDistrito, flyToConcelho]);
 
   const handleSearch = useCallback((f: FilterValues) => {
     filtersRef.current = f;
@@ -239,6 +249,15 @@ export default function Home() {
     { label: "⬇ GPL",      value: "gpl_asc"       },
   ] as const;
 
+  // Props comuns para os dois MapView
+  const mapProps = {
+    postos: sortedPostos,
+    onDistritoClick: handleDistritoClick,
+    onConcelhoClick: handleConcelhoClick,
+    mostrarPins,
+    mostrarPinsDistrito,
+  };
+
   const themeBtn = (
     <button onClick={toggle} style={{
       background:"transparent",
@@ -289,32 +308,6 @@ export default function Home() {
     </button>
   );
 
-const MapViewNode = (
-  <MapView
-    key="desktop"
-    postos={sortedPostos}
-    onDistritoClick={handleDistritoClick}
-    onConcelhoClick={handleConcelhoClick}
-    mostrarPins={mostrarPins}
-    mostrarPinsDistrito={mostrarPinsDistrito}
-    flyRef={mapFlyRef}
-    invalidateRef={mapInvalidateRef}
-  />
-);
-
-const MapViewMobile = (
-  <MapView
-    key="mobile"
-    postos={sortedPostos}
-    onDistritoClick={handleDistritoClick}
-    onConcelhoClick={handleConcelhoClick}
-    mostrarPins={mostrarPins}
-    mostrarPinsDistrito={mostrarPinsDistrito}
-    flyRef={mapFlyRef}
-    invalidateRef={mapInvalidateRef}
-  />
-);
-
   return (
     <div style={{ minHeight:"100vh", background:"var(--bg)" }}>
 
@@ -350,8 +343,6 @@ const MapViewMobile = (
           maxWidth:1600, margin:"0 auto", padding:"0 1.25rem", width:"100%",
           display:"flex", alignItems:"center", justifyContent:"space-between", gap:"0.75rem",
         }}>
-
-          {/* Logo */}
           <div style={{ display:"flex", alignItems:"center", height:HEADER_H }}>
             <img
               src={dark ? "/logo-dark.png" : "/logo-light.png"}
@@ -375,14 +366,11 @@ const MapViewMobile = (
 
           <div style={{ flex:1 }} />
 
-          {/* Botões mobile */}
           <div className="mobile-actions" style={{ gap:"0.5rem" }}>
-
-            {/* Mapa */}
             <button onClick={() => {
               setMapaOpen(true);
               setCalcOpen(false);
-              setTimeout(() => mapInvalidateRef.current?.(), 200);
+              setTimeout(() => mapInvalidateRefMobile.current?.(), 200);
             }} style={{
               background:"var(--accent)", color:"#fff",
               border:"none", borderRadius:"0.6rem",
@@ -398,7 +386,6 @@ const MapViewMobile = (
               Mapa
             </button>
 
-            {/* Calculadora */}
             <button onClick={() => { setCalcOpen(true); setMapaOpen(false); }} style={{
               background:"transparent", color:"var(--text-muted)",
               border:"1px solid var(--border)", borderRadius:"0.6rem",
@@ -422,12 +409,10 @@ const MapViewMobile = (
             {themeBtn}
           </div>
 
-          {/* Botões desktop */}
           <div className="desktop-only" style={{ display:"flex", gap:"0.5rem" }}>
             {doarBtn}
             {themeBtn}
           </div>
-
         </div>
       </header>
 
@@ -456,7 +441,6 @@ const MapViewMobile = (
 
         {/* Col 2 — LISTA */}
         <div className="lista-col" style={{ display:"flex", flexDirection:"column", gap:"0.55rem", minWidth:0 }}>
-
           <div className="card" style={{ padding:"0.45rem 0.875rem",
             display:"flex", alignItems:"center", gap:"0.5rem" }}>
             <span style={{
@@ -573,7 +557,12 @@ const MapViewMobile = (
           top: HEADER_H + 8,
           height:`calc(100vh - ${HEADER_H + 24}px)`,
         }}>
-          {MapViewNode}
+          <MapView
+            key="desktop"
+            {...mapProps}
+            flyRef={mapFlyRefDesktop}
+            invalidateRef={mapInvalidateRefDesktop}
+          />
         </div>
       </div>
 
@@ -595,7 +584,12 @@ const MapViewMobile = (
             }}>✕</button>
           </div>
           <div style={{ flex:1, overflow:"hidden" }}>
-            {MapViewMobile}
+            <MapView
+              key="mobile"
+              {...mapProps}
+              flyRef={mapFlyRefMobile}
+              invalidateRef={mapInvalidateRefMobile}
+            />
           </div>
         </div>
       )}

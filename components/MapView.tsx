@@ -167,11 +167,13 @@ export default function MapView({
               const layer = distritoLayerMap[id];
               if (layer) {
                 map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
-                setTimeout(() => {
-                  if (map.getZoom() < 9) map.setZoom(9, { animate: true });
-                }, 350);
-              }
-            },
+				if (id !== "20" && id !== "21") {
+					setTimeout(() => {
+					if (map.getZoom() < 9) map.setZoom(9, { animate: true });
+					}, 350);
+				}
+			  }
+			},
             flyToConcelho: (distritoId: string, concelhoNome: string) => {
               const norm = concelhoNome.toLowerCase()
                 .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
