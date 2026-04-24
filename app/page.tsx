@@ -149,36 +149,33 @@ export default function Home() {
     }
   }, [fetchPostos, fuelId]);
 
-// Substitui a tua função handleConcelhoClick atual por esta:
 const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
   if (ignoreMapClicksRef.current) return;
-  
+
+  // 1. Resolver ID
   let concelhoId = "";
   try {
     const lista = await getMunicipios(Number(distritoId));
-    // ... [mantém a tua lógica de normalização aqui] ...
     const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFC").replace(/[^a-z0-9 ]/g, "").trim();
     const target = norm(concelhoNome);
-    let found = lista.find((m: any) => norm(m.Descritivo) === target);
+    const found = lista.find((m: any) => norm(m.Descritivo) === target);
     if (found) concelhoId = String(found.Id);
   } catch {}
 
-  // Criamos o novo objeto de filtros
+  // 2. Atualização atómica do estado (React state batches)
+  setDistritoAtivo(distritoId);
+  setMunicipioAtivo(concelhoId);
+  
+  // 3. Criar objeto de filtro e atualizar a ref
   const novoFiltro: FilterValues = {
     ...filtersRef.current,
     idDistrito: distritoId,
     idMunicipio: concelhoId,
   };
-
-  // Atualizamos a ref para consistência
   filtersRef.current = novoFiltro;
 
-  // Atualizamos o estado que o FilterPanel escuta (isto força o re-render)
-  setDistritoAtivo(distritoId);
-  setMunicipioAtivo(concelhoId);
-
-  // Chamamos o fetch com o objeto que acabámos de criar
-  fetchPostos(novoFiltro);
+  // 4. Disparar fetch diretamente com o novo objeto
+  await fetchPostos(novoFiltro);
 }, [fetchPostos]);
   const handleFilterChange = useCallback((f: FilterValues) => {
     const distritoMudou = f.idDistrito  !== filtersRef.current.idDistrito;
