@@ -85,7 +85,6 @@ export default function MapView({
   const distritosRef  = useRef<any>(null);
   const municipiosRef = useRef<any>(null);
   const containerRef  = useRef<HTMLDivElement>(null);
-  const isFlyingRef   = useRef(false); // ← flag para bloquear clicks durante flyTo
 
   const cbDistrito             = useRef(onDistritoClick);
   const cbConcelho             = useRef(onConcelhoClick);
@@ -115,9 +114,7 @@ export default function MapView({
       mapRef.current = map;
 
       if (invalidateRef) {
-        invalidateRef.current = () => {
-          setTimeout(() => map.invalidateSize(), 150);
-        };
+        invalidateRef.current = () => { setTimeout(() => map.invalidateSize(), 150); };
       }
 
       await import("leaflet.markercluster");
@@ -149,7 +146,6 @@ export default function MapView({
             layer.on("mouseover", () => layer.setStyle(sDH));
             layer.on("mouseout",  () => distritosRef.current?.resetStyle(layer));
             layer.on("click", (e: any) => {
-              if (isFlyingRef.current) return; // ← bloqueia click durante flyTo
               L.DomEvent.stopPropagation(e);
               if (e.originalEvent?.target)
                 (e.originalEvent.target as HTMLElement).style.outline = "none";
@@ -166,26 +162,19 @@ export default function MapView({
           flyRef.current = {
             flyToDistrito: (id: string) => {
               const layer = distritoLayerMap[id];
-              if (layer) {
-                isFlyingRef.current = true;
-                setTimeout(() => { isFlyingRef.current = false; }, 1200);
-                map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
-                if (id !== "20" && id !== "21") {
-                  setTimeout(() => {
-                    if (map.getZoom() < 9) map.setZoom(9, { animate: true });
-                  }, 350);
-                }
+              if (!layer) return;
+              map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
+              if (id !== "20" && id !== "21") {
+                setTimeout(() => {
+                  if (map.getZoom() < 9) map.setZoom(9, { animate: true });
+                }, 350);
               }
             },
             flyToConcelho: (distritoId: string, concelhoNome: string) => {
               const norm = concelhoNome.toLowerCase()
                 .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
               const layer = concelhoLayerMap[`${distritoId}_${norm}`];
-              if (layer) {
-                isFlyingRef.current = true;
-                setTimeout(() => { isFlyingRef.current = false; }, 1200);
-                map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
-              }
+              if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
             },
           };
         }
@@ -217,7 +206,6 @@ export default function MapView({
             layer.on("mouseover", () => layer.setStyle(sMH));
             layer.on("mouseout",  () => municipiosRef.current?.resetStyle(layer));
             layer.on("click", (e: any) => {
-              if (isFlyingRef.current) return; // ← bloqueia click durante flyTo
               L.DomEvent.stopPropagation(e);
               if (e.originalEvent?.target)
                 (e.originalEvent.target as HTMLElement).style.outline = "none";
@@ -235,11 +223,7 @@ export default function MapView({
               const norm = concelhoNome.toLowerCase()
                 .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
               const layer = concelhoLayerMap[`${distritoId}_${norm}`];
-              if (layer) {
-                isFlyingRef.current = true;
-                setTimeout(() => { isFlyingRef.current = false; }, 1200);
-                map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
-              }
+              if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
             },
           };
         }
@@ -336,11 +320,8 @@ export default function MapView({
         });
 
         mapRef.current.addLayer(clusterRef.current);
-if (bounds.length) {
-  isFlyingRef.current = true;
-  setTimeout(() => { isFlyingRef.current = false; }, 1200);
-  mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
-}
+        // SEM isFlyingRef — não bloquear clicks após pins aparecerem
+        if (bounds.length) mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
       })();
     };
     tryAdd();

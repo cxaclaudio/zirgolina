@@ -212,29 +212,31 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
   }, [fetchPostos]);
 
   // ── Sincroniza mapa mobile quando abre ──
-  useEffect(() => {
-    if (!mapaOpen) return;
-    let attempts = 0;
-    const tryFly = () => {
-      attempts++;
-      mapInvalidateRefMobile.current?.();
-      const flyRef = mapFlyRefMobile.current;
-      if (!flyRef) {
-        if (attempts < 15) setTimeout(tryFly, 200);
-        return;
-      }
-      if (municipioAtivo && distritoAtivo) {
-        getMunicipios(Number(distritoAtivo)).then(lista => {
-          const m = (lista as any[]).find(x => String(x.Id) === municipioAtivo);
-          if (m) mapFlyRefMobile.current?.flyToConcelho(distritoAtivo, m.Descritivo);
-        });
-      } else if (distritoAtivo) {
-        flyRef.flyToDistrito(distritoAtivo);
-      }
-    };
-    const t = setTimeout(tryFly, 250);
-    return () => clearTimeout(t);
-  }, [mapaOpen, distritoAtivo, municipioAtivo]);
+useEffect(() => {
+  if (!mapaOpen) return;
+  // Usa filtersRef para evitar closure stale
+  const distrito  = filtersRef.current.idDistrito;
+  const municipio = filtersRef.current.idMunicipio;
+  let attempts = 0;
+  const tryFly = () => {
+    attempts++;
+    mapInvalidateRefMobile.current?.();
+    if (!mapFlyRefMobile.current) {
+      if (attempts < 15) setTimeout(tryFly, 200);
+      return;
+    }
+    if (municipio && distrito) {
+      getMunicipios(Number(distrito)).then(lista => {
+        const m = (lista as any[]).find(x => String(x.Id) === municipio);
+        if (m) mapFlyRefMobile.current?.flyToConcelho(distrito, m.Descritivo);
+      });
+    } else if (distrito) {
+      mapFlyRefMobile.current.flyToDistrito(distrito);
+    }
+  };
+  const t = setTimeout(tryFly, 150);
+  return () => clearTimeout(t);
+}, [mapaOpen]);
 
   function handleCopy(addr: string) {
     navigator.clipboard.writeText(addr);
@@ -607,37 +609,38 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
         </div>
       </div>
 
-      {/* ── MODAL MAPA (mobile) — sempre montado no DOM ── */}
-      <div style={{
-        position:"fixed",
-        top:    mapaOpen ? 0 : "100vh",
-        left:   0, right: 0,
-        bottom: mapaOpen ? 0 : "-100vh",
-        zIndex: 100,
-        background:"var(--bg)", display:"flex", flexDirection:"column",
-        transition: "top 0.2s ease, bottom 0.2s ease",
-        pointerEvents: mapaOpen ? "auto" : "none",
-      }}>
-        <div style={{
-          display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"0 1rem", height:HEADER_H,
-          borderBottom:"1px solid var(--border)", flexShrink:0,
-        }}>
-          <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Mapa</span>
-          <button onClick={() => setMapaOpen(false)} style={{
-            background:"none", border:"none", cursor:"pointer",
-            color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
-          }}>✕</button>
-        </div>
-        <div style={{ flex:1, overflow:"hidden" }}>
-          <MapView
-            key="mobile"
-            {...mapProps}
-            flyRef={mapFlyRefMobile}
-            invalidateRef={mapInvalidateRefMobile}
-          />
-        </div>
-      </div>
+{/* ── MODAL MAPA (mobile) — sempre montado, translateY para Leaflet ter dimensões ── */}
+<div style={{
+  position: "fixed",
+  inset: 0,
+  zIndex: 100,
+  background: "var(--bg)",
+  display: "flex",
+  flexDirection: "column",
+  transform: mapaOpen ? "translateY(0)" : "translateY(100%)",
+  transition: "transform 0.25s ease",
+  pointerEvents: mapaOpen ? "auto" : "none",
+}}>
+  <div style={{
+    display:"flex", alignItems:"center", justifyContent:"space-between",
+    padding:"0 1rem", height:HEADER_H,
+    borderBottom:"1px solid var(--border)", flexShrink:0,
+  }}>
+    <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Mapa</span>
+    <button onClick={() => setMapaOpen(false)} style={{
+      background:"none", border:"none", cursor:"pointer",
+      color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
+    }}>✕</button>
+  </div>
+  <div style={{ flex:1, overflow:"hidden" }}>
+    <MapView
+      key="mobile"
+      {...mapProps}
+      flyRef={mapFlyRefMobile}
+      invalidateRef={mapInvalidateRefMobile}
+    />
+  </div>
+</div>
 
       {/* ── MODAL CALCULADORA (mobile) ── */}
       {calcOpen && (
