@@ -188,7 +188,6 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
     if (found) concelhoId = String(found.Id);
   } catch { }
 
-  // Se mesmo assim não encontrou, usa só o distrito — pelo menos mostra algo
   const newF: FilterValues = {
     ...filtersRef.current,
     fuelId,
@@ -199,14 +198,8 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
   setDistritoAtivo(distritoId);
   setMunicipioAtivo(concelhoId);
 
-  // Se não encontrou o concelho, força busca só por distrito + marca (se tiver)
   if (!concelhoId) {
-    const fallbackF: FilterValues = {
-      ...newF,
-      idMunicipio: "",
-      // só busca se tiver marca, senão não faz nada útil
-    };
-    if (filtersRef.current.marcaId) fetchPostos(fallbackF);
+    if (filtersRef.current.marcaId) fetchPostos({ ...newF, idMunicipio: "" });
     return;
   }
 
