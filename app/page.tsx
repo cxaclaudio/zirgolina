@@ -155,33 +155,35 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
   try {
     const lista = await getMunicipios(Number(distritoId));
 
-    const norm = (s: string) => s.toLowerCase()
-      .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC")
-      .replace(/[^a-z0-9\s]/g, "").trim();
+    const norm = (s: string) => {
+      return s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")  // ← sem unicode property escape, funciona em todos os browsers
+        .normalize("NFC")
+        .replace(/[^a-z0-9 ]/g, "")
+        .trim();
+    };
 
     const target = norm(concelhoNome);
 
-    // 1. match exacto
     let found = lista.find((m: any) => norm(m.Descritivo) === target);
 
-    // 2. um contém o outro
     if (!found) found = lista.find((m: any) => {
       const n = norm(m.Descritivo);
       return n.includes(target) || target.includes(n);
     });
 
-    // 3. match por palavras individuais
     if (!found) {
-      const tw = target.split(/\s+/).filter(Boolean);
+      const tw = target.split(" ").filter(Boolean);
       found = lista.find((m: any) => {
-        const mw = norm(m.Descritivo).split(/\s+/).filter(Boolean);
+        const mw = norm(m.Descritivo).split(" ").filter(Boolean);
         return tw.every((w: string) => mw.includes(w)) || mw.every((w: string) => tw.includes(w));
       });
     }
 
-    // 4. match por primeira palavra (último recurso)
-    if (!found && target.split(/\s+/)[0]?.length > 3) {
-      const firstWord = target.split(/\s+/)[0];
+    if (!found && target.split(" ")[0]?.length > 3) {
+      const firstWord = target.split(" ")[0];
       found = lista.find((m: any) => norm(m.Descritivo).startsWith(firstWord));
     }
 
