@@ -217,14 +217,14 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
 
     if (concelhoMudou && f.idMunicipio && f.idDistrito) {
       ignoreMapClicksRef.current = true;
-      setTimeout(() => { ignoreMapClicksRef.current = false; }, 800);
+      setTimeout(() => { ignoreMapClicksRef.current = false; }, 2000);
       getMunicipios(Number(f.idDistrito)).then(lista => {
         const m = (lista as any[]).find(x => String(x.Id) === f.idMunicipio);
         if (m) flyToConcelho(f.idDistrito, m.Descritivo);
       });
     } else if (distritoMudou && f.idDistrito) {
       ignoreMapClicksRef.current = true;
-      setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
+      setTimeout(() => { ignoreMapClicksRef.current = false; }, 2000);
       flyToDistrito(f.idDistrito);
     }
   }, [flyToDistrito, flyToConcelho]);
@@ -233,7 +233,7 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
     filtersRef.current = f;
     // Bloqueia clicks do mapa enquanto o flyTo anima
     ignoreMapClicksRef.current = true;
-    setTimeout(() => { ignoreMapClicksRef.current = false; }, 800);
+    setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
     fetchPostos(f);
   }, [fetchPostos]);
 
