@@ -336,7 +336,11 @@ export default function MapView({
         });
 
         mapRef.current.addLayer(clusterRef.current);
-        if (bounds.length) mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+if (bounds.length) {
+  isFlyingRef.current = true;
+  setTimeout(() => { isFlyingRef.current = false; }, 1200);
+  mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+}
       })();
     };
     tryAdd();

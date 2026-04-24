@@ -149,30 +149,38 @@ export default function Home() {
     }
   }, [fetchPostos, fuelId]);
 
-  const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
-    if (ignoreMapClicksRef.current) return; // ← ignora clicks durante flyTo
-    let concelhoId = "";
-    try {
-      const lista = await getMunicipios(Number(distritoId));
-      const normTarget = concelhoNome.toLowerCase()
-        .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
-      const found = lista.find((m: any) => {
-        const norm = m.Descritivo.toLowerCase()
-          .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
-        return norm === normTarget || norm.includes(normTarget) || normTarget.includes(norm);
+const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
+  if (ignoreMapClicksRef.current) return;
+  let concelhoId = "";
+  try {
+    const lista = await getMunicipios(Number(distritoId));
+    const norm = (s: string) => s.toLowerCase()
+      .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC")
+      .replace(/[^a-z0-9\s]/g, "").trim();
+    const target = norm(concelhoNome);
+    let found = lista.find((m: any) => norm(m.Descritivo) === target);
+    if (!found) found = lista.find((m: any) => {
+      const n = norm(m.Descritivo);
+      return n.includes(target) || target.includes(n);
+    });
+    if (!found) {
+      const tw = target.split(/\s+/);
+      found = lista.find((m: any) => {
+        const mw = norm(m.Descritivo).split(/\s+/);
+        return tw.every((w: string) => mw.includes(w)) || mw.every((w: string) => tw.includes(w));
       });
-      if (found) concelhoId = String(found.Id);
-    } catch { /* usa só distrito */ }
+    }
+    if (found) concelhoId = String(found.Id);
+  } catch { }
 
-    const newF: FilterValues = {
-      ...filtersRef.current, fuelId, idDistrito: distritoId, idMunicipio: concelhoId,
-    };
-    filtersRef.current = newF;
-    setDistritoAtivo(distritoId);
-    setMunicipioAtivo(concelhoId);
-    fetchPostos(newF);
-  }, [fetchPostos, fuelId]);
-
+  const newF: FilterValues = {
+    ...filtersRef.current, fuelId, idDistrito: distritoId, idMunicipio: concelhoId,
+  };
+  filtersRef.current = newF;
+  setDistritoAtivo(distritoId);
+  setMunicipioAtivo(concelhoId);
+  fetchPostos(newF);
+}, [fetchPostos, fuelId]);
   const handleFilterChange = useCallback((f: FilterValues) => {
     const distritoMudou = f.idDistrito  !== filtersRef.current.idDistrito;
     const concelhoMudou = f.idMunicipio !== filtersRef.current.idMunicipio;
