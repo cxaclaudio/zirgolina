@@ -154,31 +154,62 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
   let concelhoId = "";
   try {
     const lista = await getMunicipios(Number(distritoId));
+
     const norm = (s: string) => s.toLowerCase()
       .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC")
       .replace(/[^a-z0-9\s]/g, "").trim();
+
     const target = norm(concelhoNome);
+
+    // 1. match exacto
     let found = lista.find((m: any) => norm(m.Descritivo) === target);
+
+    // 2. um contém o outro
     if (!found) found = lista.find((m: any) => {
       const n = norm(m.Descritivo);
       return n.includes(target) || target.includes(n);
     });
+
+    // 3. match por palavras individuais
     if (!found) {
-      const tw = target.split(/\s+/);
+      const tw = target.split(/\s+/).filter(Boolean);
       found = lista.find((m: any) => {
-        const mw = norm(m.Descritivo).split(/\s+/);
+        const mw = norm(m.Descritivo).split(/\s+/).filter(Boolean);
         return tw.every((w: string) => mw.includes(w)) || mw.every((w: string) => tw.includes(w));
       });
     }
+
+    // 4. match por primeira palavra (último recurso)
+    if (!found && target.split(/\s+/)[0]?.length > 3) {
+      const firstWord = target.split(/\s+/)[0];
+      found = lista.find((m: any) => norm(m.Descritivo).startsWith(firstWord));
+    }
+
     if (found) concelhoId = String(found.Id);
   } catch { }
 
+  // Se mesmo assim não encontrou, usa só o distrito — pelo menos mostra algo
   const newF: FilterValues = {
-    ...filtersRef.current, fuelId, idDistrito: distritoId, idMunicipio: concelhoId,
+    ...filtersRef.current,
+    fuelId,
+    idDistrito: distritoId,
+    idMunicipio: concelhoId,
   };
   filtersRef.current = newF;
   setDistritoAtivo(distritoId);
   setMunicipioAtivo(concelhoId);
+
+  // Se não encontrou o concelho, força busca só por distrito + marca (se tiver)
+  if (!concelhoId) {
+    const fallbackF: FilterValues = {
+      ...newF,
+      idMunicipio: "",
+      // só busca se tiver marca, senão não faz nada útil
+    };
+    if (filtersRef.current.marcaId) fetchPostos(fallbackF);
+    return;
+  }
+
   fetchPostos(newF);
 }, [fetchPostos, fuelId]);
   const handleFilterChange = useCallback((f: FilterValues) => {
