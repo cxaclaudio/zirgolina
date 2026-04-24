@@ -15,7 +15,6 @@ interface Props {
     flyToDistrito: (id: string) => void;
     flyToConcelho: (distritoId: string, concelhoNome: string) => void;
   } | null>;
-  onReady?: () => void;
 }
 
 const DISTRITOS_URL  = "/distritos.geojson";
@@ -78,7 +77,7 @@ async function fetchGeoJSON(url: string) {
 
 export default function MapView({
   postos, onBoundsChange, onDistritoClick, onConcelhoClick,
-  mostrarPins, mostrarPinsDistrito, flyRef, invalidateRef, onReady,
+  mostrarPins, mostrarPinsDistrito, flyRef, invalidateRef,
 }: Props) {
   const mapRef        = useRef<any>(null);
   const clusterRef    = useRef<any>(null);
@@ -86,7 +85,7 @@ export default function MapView({
   const distritosRef  = useRef<any>(null);
   const municipiosRef = useRef<any>(null);
   const containerRef  = useRef<HTMLDivElement>(null);
-  const isFlyingRef   = useRef(false);
+  const isFlyingRef   = useRef(false); // ← flag para bloquear clicks durante flyTo
 
   const cbDistrito             = useRef(onDistritoClick);
   const cbConcelho             = useRef(onConcelhoClick);
@@ -121,9 +120,6 @@ export default function MapView({
         };
       }
 
-      // Notifica o pai que o mapa está pronto
-      onReady?.();
-
       await import("leaflet.markercluster");
       // @ts-ignore
       clusterRef.current = L.markerClusterGroup({
@@ -153,7 +149,7 @@ export default function MapView({
             layer.on("mouseover", () => layer.setStyle(sDH));
             layer.on("mouseout",  () => distritosRef.current?.resetStyle(layer));
             layer.on("click", (e: any) => {
-              if (isFlyingRef.current) return;
+              if (isFlyingRef.current) return; // ← bloqueia click durante flyTo
               L.DomEvent.stopPropagation(e);
               if (e.originalEvent?.target)
                 (e.originalEvent.target as HTMLElement).style.outline = "none";
@@ -221,7 +217,7 @@ export default function MapView({
             layer.on("mouseover", () => layer.setStyle(sMH));
             layer.on("mouseout",  () => municipiosRef.current?.resetStyle(layer));
             layer.on("click", (e: any) => {
-              if (isFlyingRef.current) return;
+              if (isFlyingRef.current) return; // ← bloqueia click durante flyTo
               L.DomEvent.stopPropagation(e);
               if (e.originalEvent?.target)
                 (e.originalEvent.target as HTMLElement).style.outline = "none";
@@ -340,11 +336,11 @@ export default function MapView({
         });
 
         mapRef.current.addLayer(clusterRef.current);
-        if (bounds.length) {
-          isFlyingRef.current = true;
-          setTimeout(() => { isFlyingRef.current = false; }, 1200);
-          mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
-        }
+if (bounds.length) {
+  isFlyingRef.current = true;
+  setTimeout(() => { isFlyingRef.current = false; }, 1200);
+  mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+}
       })();
     };
     tryAdd();
