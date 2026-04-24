@@ -71,7 +71,9 @@ export default function Home() {
   const mapInvalidateRefDesktop = useRef<(()=>void)|null>(null);
   const mapInvalidateRefMobile  = useRef<(()=>void)|null>(null);
 
-  // ── Flag para ignorar clicks do mapa durante flyTo programático ──
+  // Guarda o flyTo pendente para executar quando o mapa mobile montar
+  const pendingFlyRef = useRef<null | { type: "distrito"; id: string } | { type: "concelho"; dId: string; cNome: string }>(null);
+
   const ignoreMapClicksRef = useRef(false);
 
   const filtersRef = useRef<FilterValues>({
@@ -80,12 +82,20 @@ export default function Home() {
 
   const flyToDistrito = useCallback((id: string) => {
     mapFlyRefDesktop.current?.flyToDistrito(id);
-    mapFlyRefMobile.current?.flyToDistrito(id);
+    if (mapFlyRefMobile.current) {
+      mapFlyRefMobile.current.flyToDistrito(id);
+    } else {
+      pendingFlyRef.current = { type: "distrito", id };
+    }
   }, []);
 
   const flyToConcelho = useCallback((dId: string, cNome: string) => {
     mapFlyRefDesktop.current?.flyToConcelho(dId, cNome);
-    mapFlyRefMobile.current?.flyToConcelho(dId, cNome);
+    if (mapFlyRefMobile.current) {
+      mapFlyRefMobile.current.flyToConcelho(dId, cNome);
+    } else {
+      pendingFlyRef.current = { type: "concelho", dId, cNome };
+    }
   }, []);
 
   const fetchPostos = useCallback(async (f: FilterValues) => {
@@ -132,10 +142,11 @@ export default function Home() {
     setPostos([]); setError("");
     setDistritoAtivo(""); setMunicipioAtivo("");
     setFuelId("3201"); setOrdenacao("gasolina_asc");
+    pendingFlyRef.current = null;
   }
 
   const handleDistritoClick = useCallback((nome: string, id?: string) => {
-    if (ignoreMapClicksRef.current) return; // ← ignora clicks durante flyTo
+    if (ignoreMapClicksRef.current) return;
     const newF: FilterValues = {
       ...filtersRef.current, fuelId, idDistrito: id ?? "", idMunicipio: "",
     };
@@ -149,38 +160,39 @@ export default function Home() {
     }
   }, [fetchPostos, fuelId]);
 
-const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
-  if (ignoreMapClicksRef.current) return;
-  let concelhoId = "";
-  try {
-    const lista = await getMunicipios(Number(distritoId));
-    const norm = (s: string) => s.toLowerCase()
-      .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC")
-      .replace(/[^a-z0-9\s]/g, "").trim();
-    const target = norm(concelhoNome);
-    let found = lista.find((m: any) => norm(m.Descritivo) === target);
-    if (!found) found = lista.find((m: any) => {
-      const n = norm(m.Descritivo);
-      return n.includes(target) || target.includes(n);
-    });
-    if (!found) {
-      const tw = target.split(/\s+/);
-      found = lista.find((m: any) => {
-        const mw = norm(m.Descritivo).split(/\s+/);
-        return tw.every((w: string) => mw.includes(w)) || mw.every((w: string) => tw.includes(w));
+  const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
+    if (ignoreMapClicksRef.current) return;
+    let concelhoId = "";
+    try {
+      const lista = await getMunicipios(Number(distritoId));
+      const norm = (s: string) => s.toLowerCase()
+        .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC")
+        .replace(/[^a-z0-9\s]/g, "").trim();
+      const target = norm(concelhoNome);
+      let found = lista.find((m: any) => norm(m.Descritivo) === target);
+      if (!found) found = lista.find((m: any) => {
+        const n = norm(m.Descritivo);
+        return n.includes(target) || target.includes(n);
       });
-    }
-    if (found) concelhoId = String(found.Id);
-  } catch { }
+      if (!found) {
+        const tw = target.split(/\s+/);
+        found = lista.find((m: any) => {
+          const mw = norm(m.Descritivo).split(/\s+/);
+          return tw.every((w: string) => mw.includes(w)) || mw.every((w: string) => tw.includes(w));
+        });
+      }
+      if (found) concelhoId = String(found.Id);
+    } catch { }
 
-  const newF: FilterValues = {
-    ...filtersRef.current, fuelId, idDistrito: distritoId, idMunicipio: concelhoId,
-  };
-  filtersRef.current = newF;
-  setDistritoAtivo(distritoId);
-  setMunicipioAtivo(concelhoId);
-  fetchPostos(newF);
-}, [fetchPostos, fuelId]);
+    const newF: FilterValues = {
+      ...filtersRef.current, fuelId, idDistrito: distritoId, idMunicipio: concelhoId,
+    };
+    filtersRef.current = newF;
+    setDistritoAtivo(distritoId);
+    setMunicipioAtivo(concelhoId);
+    fetchPostos(newF);
+  }, [fetchPostos, fuelId]);
+
   const handleFilterChange = useCallback((f: FilterValues) => {
     const distritoMudou = f.idDistrito  !== filtersRef.current.idDistrito;
     const concelhoMudou = f.idMunicipio !== filtersRef.current.idMunicipio;
@@ -205,35 +217,61 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
 
   const handleSearch = useCallback((f: FilterValues) => {
     filtersRef.current = f;
-    // Bloqueia clicks do mapa enquanto o flyTo anima
     ignoreMapClicksRef.current = true;
     setTimeout(() => { ignoreMapClicksRef.current = false; }, 800);
     fetchPostos(f);
   }, [fetchPostos]);
 
-  // ── Sincroniza mapa mobile quando abre ──
-  useEffect(() => {
-    if (!mapaOpen) return;
-    let attempts = 0;
-    const tryFly = () => {
-      attempts++;
+  // Callback chamado pelo MapView mobile quando monta (invalidateRef é preenchido)
+  // Usamos o invalidateRef como proxy para saber que o mapa montou
+  const handleMobileMapReady = useCallback(() => {
+    // Pequeno delay para o Leaflet terminar de inicializar tiles e dimensões
+    setTimeout(() => {
       mapInvalidateRefMobile.current?.();
-      const flyRef = mapFlyRefMobile.current;
-      if (!flyRef) {
-        if (attempts < 15) setTimeout(tryFly, 200);
+      const pending = pendingFlyRef.current;
+      if (pending) {
+        pendingFlyRef.current = null;
+        if (pending.type === "distrito") {
+          mapFlyRefMobile.current?.flyToDistrito(pending.id);
+        } else {
+          mapFlyRefMobile.current?.flyToConcelho(pending.dId, pending.cNome);
+        }
         return;
       }
+      // Sem pendente — centra no estado atual
       if (municipioAtivo && distritoAtivo) {
         getMunicipios(Number(distritoAtivo)).then(lista => {
           const m = (lista as any[]).find(x => String(x.Id) === municipioAtivo);
           if (m) mapFlyRefMobile.current?.flyToConcelho(distritoAtivo, m.Descritivo);
         });
       } else if (distritoAtivo) {
-        flyRef.flyToDistrito(distritoAtivo);
+        mapFlyRefMobile.current?.flyToDistrito(distritoAtivo);
       }
-    };
-    const t = setTimeout(tryFly, 250);
-    return () => clearTimeout(t);
+    }, 300);
+  }, [distritoAtivo, municipioAtivo]);
+
+  // Quando mapaOpen muda para true, limpa o ref do mapa mobile para forçar re-mount limpo
+  const prevMapaOpen = useRef(false);
+  useEffect(() => {
+    if (mapaOpen && !prevMapaOpen.current) {
+      // O mapa vai montar agora — guarda o estado atual como pendente se não há ref ainda
+      if (!mapFlyRefMobile.current) {
+        if (municipioAtivo && distritoAtivo) {
+          getMunicipios(Number(distritoAtivo)).then(lista => {
+            const m = (lista as any[]).find(x => String(x.Id) === municipioAtivo);
+            if (m) pendingFlyRef.current = { type: "concelho", dId: distritoAtivo, cNome: m.Descritivo };
+          });
+        } else if (distritoAtivo) {
+          pendingFlyRef.current = { type: "distrito", id: distritoAtivo };
+        }
+      }
+    }
+    if (!mapaOpen) {
+      // Quando fecha, limpa os refs para que no próximo open seja re-montado limpo
+      mapFlyRefMobile.current = null;
+      mapInvalidateRefMobile.current = null;
+    }
+    prevMapaOpen.current = mapaOpen;
   }, [mapaOpen, distritoAtivo, municipioAtivo]);
 
   function handleCopy(addr: string) {
@@ -411,7 +449,6 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
             <button onClick={() => {
               setMapaOpen(true);
               setCalcOpen(false);
-              setTimeout(() => mapInvalidateRefMobile.current?.(), 200);
             }} style={{
               background:"var(--accent)", color:"#fff",
               border:"none", borderRadius:"0.6rem",
@@ -607,37 +644,34 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
         </div>
       </div>
 
-      {/* ── MODAL MAPA (mobile) — sempre montado no DOM ── */}
-      <div style={{
-        position:"fixed",
-        top:    mapaOpen ? 0 : "100vh",
-        left:   0, right: 0,
-        bottom: mapaOpen ? 0 : "-100vh",
-        zIndex: 100,
-        background:"var(--bg)", display:"flex", flexDirection:"column",
-        transition: "top 0.2s ease, bottom 0.2s ease",
-        pointerEvents: mapaOpen ? "auto" : "none",
-      }}>
+      {/* ── MODAL MAPA (mobile) — só monta quando mapaOpen=true para Leaflet inicializar corretamente ── */}
+      {mapaOpen && (
         <div style={{
-          display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"0 1rem", height:HEADER_H,
-          borderBottom:"1px solid var(--border)", flexShrink:0,
+          position:"fixed", inset:0, zIndex:100,
+          background:"var(--bg)", display:"flex", flexDirection:"column",
         }}>
-          <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Mapa</span>
-          <button onClick={() => setMapaOpen(false)} style={{
-            background:"none", border:"none", cursor:"pointer",
-            color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
-          }}>✕</button>
+          <div style={{
+            display:"flex", alignItems:"center", justifyContent:"space-between",
+            padding:"0 1rem", height:HEADER_H,
+            borderBottom:"1px solid var(--border)", flexShrink:0,
+          }}>
+            <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Mapa</span>
+            <button onClick={() => setMapaOpen(false)} style={{
+              background:"none", border:"none", cursor:"pointer",
+              color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
+            }}>✕</button>
+          </div>
+          <div style={{ flex:1, overflow:"hidden" }}>
+            <MapView
+              key={`mobile-${Date.now()}`}
+              {...mapProps}
+              flyRef={mapFlyRefMobile}
+              invalidateRef={mapInvalidateRefMobile}
+              onReady={handleMobileMapReady}
+            />
+          </div>
         </div>
-        <div style={{ flex:1, overflow:"hidden" }}>
-          <MapView
-            key="mobile"
-            {...mapProps}
-            flyRef={mapFlyRefMobile}
-            invalidateRef={mapInvalidateRefMobile}
-          />
-        </div>
-      </div>
+      )}
 
       {/* ── MODAL CALCULADORA (mobile) ── */}
       {calcOpen && (
