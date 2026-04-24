@@ -149,64 +149,37 @@ export default function Home() {
     }
   }, [fetchPostos, fuelId]);
 
+// Substitui a tua função handleConcelhoClick atual por esta:
 const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
   if (ignoreMapClicksRef.current) return;
+  
   let concelhoId = "";
   try {
     const lista = await getMunicipios(Number(distritoId));
-
-    const norm = (s: string) => {
-      return s
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")  // ← sem unicode property escape, funciona em todos os browsers
-        .normalize("NFC")
-        .replace(/[^a-z0-9 ]/g, "")
-        .trim();
-    };
-
+    // ... [mantém a tua lógica de normalização aqui] ...
+    const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFC").replace(/[^a-z0-9 ]/g, "").trim();
     const target = norm(concelhoNome);
-
     let found = lista.find((m: any) => norm(m.Descritivo) === target);
-
-    if (!found) found = lista.find((m: any) => {
-      const n = norm(m.Descritivo);
-      return n.includes(target) || target.includes(n);
-    });
-
-    if (!found) {
-      const tw = target.split(" ").filter(Boolean);
-      found = lista.find((m: any) => {
-        const mw = norm(m.Descritivo).split(" ").filter(Boolean);
-        return tw.every((w: string) => mw.includes(w)) || mw.every((w: string) => tw.includes(w));
-      });
-    }
-
-    if (!found && target.split(" ")[0]?.length > 3) {
-      const firstWord = target.split(" ")[0];
-      found = lista.find((m: any) => norm(m.Descritivo).startsWith(firstWord));
-    }
-
     if (found) concelhoId = String(found.Id);
-  } catch { }
+  } catch {}
 
-  const newF: FilterValues = {
+  // Criamos o novo objeto de filtros
+  const novoFiltro: FilterValues = {
     ...filtersRef.current,
-    fuelId,
     idDistrito: distritoId,
     idMunicipio: concelhoId,
   };
-  filtersRef.current = newF;
+
+  // Atualizamos a ref para consistência
+  filtersRef.current = novoFiltro;
+
+  // Atualizamos o estado que o FilterPanel escuta (isto força o re-render)
   setDistritoAtivo(distritoId);
   setMunicipioAtivo(concelhoId);
 
-  if (!concelhoId) {
-    if (filtersRef.current.marcaId) fetchPostos({ ...newF, idMunicipio: "" });
-    return;
-  }
-
-  fetchPostos(newF);
-}, [fetchPostos, fuelId]);
+  // Chamamos o fetch com o objeto que acabámos de criar
+  fetchPostos(novoFiltro);
+}, [fetchPostos]);
   const handleFilterChange = useCallback((f: FilterValues) => {
     const distritoMudou = f.idDistrito  !== filtersRef.current.idDistrito;
     const concelhoMudou = f.idMunicipio !== filtersRef.current.idMunicipio;
