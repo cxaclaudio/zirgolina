@@ -156,7 +156,9 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
   let concelhoId = "";
 
   try {
-    const lista = await getMunicipios(Number(distritoId));
+    const res = await fetch(`/api/municipios?id=${distritoId}`);
+    const json = await res.json();
+    const lista = json.data ?? [];
 
     const norm = (s: string) =>
       (s ?? "")
@@ -169,7 +171,7 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
 
     const target = norm(concelhoNome);
 
-    let found =
+    const found =
       lista.find((m: any) => norm(m.Descritivo) === target) ||
       lista.find((m: any) => norm(m.Descritivo).startsWith(target)) ||
       lista.find((m: any) => target.startsWith(norm(m.Descritivo))) ||
@@ -177,18 +179,18 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
       lista.find((m: any) => target.includes(norm(m.Descritivo)));
 
     if (found) concelhoId = String(found.Id);
-
     if (!concelhoId) {
       alert(`Não encontrei ID para o concelho: "${concelhoNome}" no distrito ${distritoId}`);
       return;
     }
-  } catch {
-    alert(`Erro a carregar municípios para distrito ${distritoId}`);
+  } catch (err) {
+    alert(`Erro a carregar municípios locais para distrito ${distritoId}`);
     return;
   }
 
   const novoFiltro: FilterValues = {
     ...filtersRef.current,
+    fuelId,
     idDistrito: distritoId,
     idMunicipio: concelhoId,
   };
@@ -197,7 +199,7 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
   setDistritoAtivo(distritoId);
   setMunicipioAtivo(concelhoId);
   fetchPostos(novoFiltro);
-}, [fetchPostos]);
+}, [fetchPostos, fuelId]);
   const handleFilterChange = useCallback((f: FilterValues) => {
     const distritoMudou = f.idDistrito  !== filtersRef.current.idDistrito;
     const concelhoMudou = f.idMunicipio !== filtersRef.current.idMunicipio;
