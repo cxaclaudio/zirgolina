@@ -950,8 +950,8 @@ export default function Home() {
               carregada de boa vontade! Se queres ajudar-me a manter este projeto, tens algumas
               formas de como contribuir abaixo. Se queres contribuir de outra forma, por favor
               envia um email para{" "}
-              <a href="mailto:zirgolina@tuta.io" style={{ color: "var(--accent)" }}>
-                zirgolina@tuta.io
+              <a href="mailto:zirgolina@sapo.pt" style={{ color: "var(--accent)" }}>
+                zirgolina@sapo.pt
               </a>.
             </p>
 
