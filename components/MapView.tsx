@@ -120,6 +120,7 @@ export default function MapView({
 }: Props) {
   const mapRef = useRef<any>(null);
   const clusterRef = useRef<any>(null);
+  const pinsLayerRef = useRef<any>(null);
   const mapReadyRef = useRef(false);
   const distritosRef = useRef<any>(null);
   const municipiosRef = useRef<any>(null);
@@ -172,6 +173,7 @@ export default function MapView({
       }
 
       await import("leaflet.markercluster");
+
       // @ts-ignore
       clusterRef.current = L.markerClusterGroup({
         maxClusterRadius: 45,
@@ -186,6 +188,7 @@ export default function MapView({
           }),
       });
 
+      pinsLayerRef.current = L.layerGroup();
       mapReadyRef.current = true;
 
       const sD = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
@@ -375,22 +378,29 @@ export default function MapView({
     if (!mapRef.current) return;
 
     const tryAdd = (retries = 20) => {
-      if (!mapReadyRef.current || !clusterRef.current) {
+      if (!mapReadyRef.current || !clusterRef.current || !pinsLayerRef.current) {
         if (retries > 0) setTimeout(() => tryAdd(retries - 1), 200);
         return;
       }
 
       (async () => {
         const L = (await import("leaflet")).default;
+        const map = mapRef.current;
 
-        if (mapRef.current.hasLayer(clusterRef.current)) {
-          mapRef.current.removeLayer(clusterRef.current);
+        if (map.hasLayer(clusterRef.current)) {
+          map.removeLayer(clusterRef.current);
         }
+        if (map.hasLayer(pinsLayerRef.current)) {
+          map.removeLayer(pinsLayerRef.current);
+        }
+
+        clusterRef.current.clearLayers();
+        pinsLayerRef.current.clearLayers();
 
         if (!mostrarPins || postos.length === 0) return;
 
-        clusterRef.current.clearLayers();
         const bounds: [number, number][] = [];
+        const usarCluster = !mostrarPinsDistrito;
 
         postos.forEach((posto) => {
           if (posto.lat === null || posto.lng === null) return;
@@ -423,9 +433,8 @@ export default function MapView({
               )
               .join("") || `<span style="font-size:0.72rem;color:#888">Sem preços</span>`;
 
-          clusterRef.current.addLayer(
-            L.marker([posto.lat, posto.lng], { icon }).bindPopup(
-              `
+          const marker = L.marker([posto.lat, posto.lng], { icon }).bindPopup(
+            `
 <div style="min-width:180px">
   <p style="font-weight:700;margin:0 0 2px">
     <span style="color:${marcaCor}">${posto.marca}</span>
@@ -448,23 +457,32 @@ export default function MapView({
     Direções
   </a>
 </div>`,
-              { maxWidth: 260 }
-            )
+            { maxWidth: 260 }
           );
+
+          if (usarCluster) {
+            clusterRef.current.addLayer(marker);
+          } else {
+            pinsLayerRef.current.addLayer(marker);
+          }
 
           bounds.push([posto.lat, posto.lng]);
         });
 
-        mapRef.current.addLayer(clusterRef.current);
+        if (usarCluster) {
+          map.addLayer(clusterRef.current);
+        } else {
+          map.addLayer(pinsLayerRef.current);
+        }
 
         if (bounds.length) {
-          mapRef.current.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+          map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
         }
       })();
     };
 
     tryAdd();
-  }, [postos, mostrarPins]);
+  }, [postos, mostrarPins, mostrarPinsDistrito]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: "400px" }} />;
 }
