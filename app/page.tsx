@@ -179,12 +179,8 @@ const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome:
       lista.find((m: any) => target.includes(norm(m.Descritivo)));
 
     if (found) concelhoId = String(found.Id);
-    if (!concelhoId) {
-      alert(`Não encontrei ID para o concelho: "${concelhoNome}" no distrito ${distritoId}`);
-      return;
-    }
-  } catch (err) {
-    alert(`Erro a carregar municípios locais para distrito ${distritoId}`);
+    if (!concelhoId) return;
+  } catch {
     return;
   }
 

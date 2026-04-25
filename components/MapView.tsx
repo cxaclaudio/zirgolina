@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { Posto } from "@/lib/dgeg";
 import { DISTRITO_BOUNDS } from "@/lib/bounds";
 
@@ -90,13 +90,10 @@ export default function MapView({
   const cbConcelho             = useRef(onConcelhoClick);
   const mostrarPinsDistritoRef = useRef(mostrarPinsDistrito);
 
-  const [debugMsg, setDebugMsg] = useState("debug: idle");
-
   useEffect(() => { cbDistrito.current = onDistritoClick; }, [onDistritoClick]);
   useEffect(() => { cbConcelho.current = onConcelhoClick; }, [onConcelhoClick]);
   useEffect(() => { mostrarPinsDistritoRef.current = mostrarPinsDistrito; }, [mostrarPinsDistrito]);
 
-  // ── Init mapa ──
   useEffect(() => {
     if (typeof window === "undefined" || mapRef.current) return;
     (async () => {
@@ -151,8 +148,6 @@ export default function MapView({
               L.DomEvent.stopPropagation(e);
               if (e.originalEvent?.target)
                 (e.originalEvent.target as HTMLElement).style.outline = "none";
-
-              setDebugMsg(`distrito click: ${nome} (${id ?? "?"})`);
 
               map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
               setTimeout(() => {
@@ -215,8 +210,6 @@ export default function MapView({
               if (e.originalEvent?.target)
                 (e.originalEvent.target as HTMLElement).style.outline = "none";
 
-              setDebugMsg(`concelho click: ${conNome} | distritoId=${distritoId}`);
-
               map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
               if (distritoId && conNome) cbConcelho.current?.(distritoId, conNome);
             });
@@ -262,7 +255,6 @@ export default function MapView({
     })();
   }, []);
 
-  // ── Pins ──
   useEffect(() => {
     if (!mapRef.current) return;
     const tryAdd = (retries = 20) => {
@@ -335,28 +327,6 @@ export default function MapView({
   }, [postos, mostrarPins]);
 
   return (
-    <div style={{ width: "100%", height: "100%", minHeight: "400px", position: "relative" }}>
-      <div
-        ref={containerRef}
-        style={{ width: "100%", height: "100%", minHeight: "400px" }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          left: 8,
-          bottom: 8,
-          zIndex: 9999,
-          background: "rgba(0,0,0,0.78)",
-          color: "#fff",
-          fontSize: "12px",
-          padding: "6px 8px",
-          borderRadius: "6px",
-          maxWidth: "85%",
-          pointerEvents: "none",
-        }}
-      >
-        {debugMsg}
-      </div>
-    </div>
+    <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: "400px" }} />
   );
 }
