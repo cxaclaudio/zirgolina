@@ -176,7 +176,7 @@ export default function MapView({
       clusterRef.current = L.markerClusterGroup({
         maxClusterRadius: 45,
         showCoverageOnHover: false,
-        disableClusteringAtZoom: 10,
+        disableClusteringAtZoom: 9,
         iconCreateFunction: () =>
           L.divIcon({
             className: "",
