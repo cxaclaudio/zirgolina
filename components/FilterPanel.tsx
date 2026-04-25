@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useTheme } from "@/components/ThemeProvider";
 import { ALLOWED_MARCAS } from "@/lib/dgeg";
 
@@ -47,28 +47,39 @@ export default function FilterPanel({
 
   useEffect(() => {
     if (!precoCalc && cheapestPrice) setPrecoCalc(cheapestPrice.toFixed(3));
-  }, [cheapestPrice]);
+  }, [cheapestPrice, precoCalc]);
 
   // 1. Quando o distrito muda externamente (clique no mapa)
   useEffect(() => {
     if (distritoAtivo === idDistrito) return;
+
     setIdDistrito(distritoAtivo);
     setIdMunicipio(""); // reset concelho ao mudar distrito
-  }, [distritoAtivo]);
+  }, [distritoAtivo, idDistrito]);
 
   // 2. Quando o concelho muda externamente (clique no mapa)
+  // só aplicamos diretamente se não houver dependência da lista assíncrona
   useEffect(() => {
+    if (!municipioAtivo) {
+      if (idMunicipio !== "") setIdMunicipio("");
+      return;
+    }
     if (municipioAtivo === idMunicipio) return;
+
     setIdMunicipio(municipioAtivo);
-  }, [municipioAtivo]);
+  }, [municipioAtivo, idMunicipio]);
 
   // 3. Quando os municípios carregam de forma assíncrona e há um municipioAtivo à espera
-  //    (essencial em mobile — o fetch pode demorar mais que a propagação do estado)
+  // (essencial em mobile — o fetch pode demorar mais que a propagação do estado)
   useEffect(() => {
     if (!municipioAtivo || municipios.length === 0) return;
+
     const existe = municipios.some((m: Municipio) => String(m.Id) === municipioAtivo);
-    if (existe) setIdMunicipio(municipioAtivo);
-  }, [municipios, municipioAtivo]);
+    if (!existe) return;
+    if (municipioAtivo === idMunicipio) return;
+
+    setIdMunicipio(municipioAtivo);
+  }, [municipios, municipioAtivo, idMunicipio]);
 
   const vals = useCallback(
     (ov: Partial<FilterValues> = {}): FilterValues =>
@@ -77,31 +88,51 @@ export default function FilterPanel({
   );
 
   useEffect(() => {
-    fetch("/api/distritos").then(r => r.json()).then(d => setDistritos(d.data ?? []));
+    fetch("/api/distritos")
+      .then(r => r.json())
+      .then(d => setDistritos(d.data ?? []));
   }, []);
 
   useEffect(() => {
-    if (!idDistrito) { setMunicipios([]); return; }
+    if (!idDistrito) {
+      setMunicipios([]);
+      return;
+    }
+
     fetch(`/api/municipios?id=${idDistrito}`)
-      .then(r => r.json()).then(d => setMunicipios(d.data ?? []));
+      .then(r => r.json())
+      .then(d => setMunicipios(d.data ?? []));
   }, [idDistrito]);
 
   function handleDistritoChange(v: string) {
-    setIdDistrito(v); setIdMunicipio("");
+    setIdDistrito(v);
+    setIdMunicipio("");
     onChange(vals({ idDistrito: v, idMunicipio: "" }));
   }
+
   function handleMunicipioChange(v: string) {
     setIdMunicipio(v);
     onChange(vals({ idMunicipio: v }));
   }
+
   function handleMarcaChange(v: string) {
     setMarcaId(v);
     onChange(vals({ marcaId: v }));
   }
+
   function handleReset() {
-    setIdDistrito(""); setIdMunicipio(""); setMarcaId("");
+    setIdDistrito("");
+    setIdMunicipio("");
+    setMarcaId("");
     setPrecoCalc("");
-    onChange({ fuelId: currentFuelId, idDistrito: "", idMunicipio: "", marcaId: "", search: "" });
+
+    onChange({
+      fuelId: currentFuelId,
+      idDistrito: "",
+      idMunicipio: "",
+      marcaId: "",
+      search: "",
+    });
   }
 
   return (

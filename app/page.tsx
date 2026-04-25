@@ -11,9 +11,17 @@ import { DISTRITO_BOUNDS } from "@/lib/bounds";
 const MapView = dynamic(() => import("@/components/MapView"), {
   ssr: false,
   loading: () => (
-    <div style={{ width:"100%", height:"100%", display:"flex",
-      alignItems:"center", justifyContent:"center",
-      fontSize:"0.78rem", color:"var(--text-muted)" }}>
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "0.78rem",
+        color: "var(--text-muted)",
+      }}
+    >
       A carregar mapa…
     </div>
   ),
@@ -22,60 +30,112 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 const HEADER_H = 56;
 
 const GASOLINA_TIPOS = [
-  "gasolina simples 95", "gasolina especial 95", "gasolina especial",
-  "gasolina simples", "gasolina 98", "gasolina",
+  "gasolina simples 95",
+  "gasolina especial 95",
+  "gasolina especial",
+  "gasolina simples",
+  "gasolina 98",
+  "gasolina",
 ];
 
 const GASOLEO_EXCLUIR = /(agr[ií]col|biodiesel|b[0-9]+|colorid|aditivad)/i;
-const GASOLEO_TIPOS   = ["gasóleo simples", "gasoleo simples", "gasóleo especial", "gasoleo especial", "gasóleo", "gasoleo"];
-const GPL_TIPOS       = ["gpl"];
+const GASOLEO_TIPOS = [
+  "gasóleo simples",
+  "gasoleo simples",
+  "gasóleo especial",
+  "gasoleo especial",
+  "gasóleo",
+  "gasoleo",
+];
+const GPL_TIPOS = ["gpl"];
 
 const CRIPTO = [
-  { label:"XMR Address", addr:"45CQZ4nvwVC4L2x5BTN5F3iZBzW6oqjt6XzNLcm3mocpGKNmAaUAs7DJAddCCMpF1nKUa3Apybw8cDtmNvbFVSux2yZPXaf" },
-  { label:"BTC Address", addr:"bc1qc7ahx5r0vhrlvmsg54kyk599yyh86fvl7thmsv" },
-  { label:"ETH Address", addr:"0x985b833D87AD530790212440C8A3FA751BBC9b90" },
+  {
+    label: "XMR Address",
+    addr: "45CQZ4nvwVC4L2x5BTN5F3iZBzW6oqjt6XzNLcm3mocpGKNmAaUAs7DJAddCCMpF1nKUa3Apybw8cDtmNvbFVSux2yZPXaf",
+  },
+  {
+    label: "BTC Address",
+    addr: "bc1qc7ahx5r0vhrlvmsg54kyk599yyh86fvl7thmsv",
+  },
+  {
+    label: "ETH Address",
+    addr: "0x985b833D87AD530790212440C8A3FA751BBC9b90",
+  },
 ];
 
-function precoRelevante(posto: Posto, tipo: "gasolina" | "gasoleo" | "gpl"): number {
+function precoRelevante(
+  posto: Posto,
+  tipo: "gasolina" | "gasoleo" | "gpl"
+): number {
   const tipos =
-    tipo === "gasolina" ? GASOLINA_TIPOS :
-    tipo === "gasoleo"  ? GASOLEO_TIPOS  : GPL_TIPOS;
+    tipo === "gasolina"
+      ? GASOLINA_TIPOS
+      : tipo === "gasoleo"
+      ? GASOLEO_TIPOS
+      : GPL_TIPOS;
+
   const comb = posto.combustiveis?.find((c: any) => {
     const t = c.tipo?.toLowerCase() ?? "";
     if (tipo === "gasoleo" && GASOLEO_EXCLUIR.test(t)) return false;
-    return tipos.some(k => t.includes(k));
+    return tipos.some((k) => t.includes(k));
   });
+
   return (comb as any)?.preco ?? Infinity;
 }
 
-function temCombustivel(posto: Posto, tipo: "gasolina" | "gasoleo" | "gpl"): boolean {
+function temCombustivel(
+  posto: Posto,
+  tipo: "gasolina" | "gasoleo" | "gpl"
+): boolean {
   return precoRelevante(posto, tipo) !== Infinity;
+}
+
+function normText(s: string): string {
+  return (s ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, "")
+    .trim();
 }
 
 export default function Home() {
   const { dark, toggle } = useTheme();
-  const [postos,         setPostos]         = useState<Posto[]>([]);
-  const [loading,        setLoading]        = useState(false);
-  const [error,          setError]          = useState("");
-  const [fuelId,         setFuelId]         = useState("3201");
-  const [distritoAtivo,  setDistritoAtivo]  = useState("");
+  const [postos, setPostos] = useState<Posto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [fuelId, setFuelId] = useState("3201");
+  const [distritoAtivo, setDistritoAtivo] = useState("");
   const [municipioAtivo, setMunicipioAtivo] = useState("");
-  const [ordenacao,      setOrdenacao]      = useState("gasolina_asc");
-  const [mapaOpen,       setMapaOpen]       = useState(false);
-  const [calcOpen,       setCalcOpen]       = useState(false);
-  const [doarOpen,       setDoarOpen]       = useState(false);
-  const [copiedAddr,     setCopiedAddr]     = useState<string | null>(null);
+  const [ordenacao, setOrdenacao] = useState("gasolina_asc");
+  const [mapaOpen, setMapaOpen] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
+  const [doarOpen, setDoarOpen] = useState(false);
+  const [copiedAddr, setCopiedAddr] = useState<string | null>(null);
 
-  const mapFlyRefDesktop        = useRef<{ flyToDistrito:(id:string)=>void; flyToConcelho:(dId:string,cNome:string)=>void } | null>(null);
-  const mapFlyRefMobile         = useRef<{ flyToDistrito:(id:string)=>void; flyToConcelho:(dId:string,cNome:string)=>void } | null>(null);
-  const mapInvalidateRefDesktop = useRef<(()=>void)|null>(null);
-  const mapInvalidateRefMobile  = useRef<(()=>void)|null>(null);
+  const mapFlyRefDesktop = useRef<{
+    flyToDistrito: (id: string) => void;
+    flyToConcelho: (dId: string, cNome: string) => void;
+  } | null>(null);
+
+  const mapFlyRefMobile = useRef<{
+    flyToDistrito: (id: string) => void;
+    flyToConcelho: (dId: string, cNome: string) => void;
+  } | null>(null);
+
+  const mapInvalidateRefDesktop = useRef<(() => void) | null>(null);
+  const mapInvalidateRefMobile = useRef<(() => void) | null>(null);
 
   // ── Flag para ignorar clicks do mapa durante flyTo programático ──
   const ignoreMapClicksRef = useRef(false);
 
   const filtersRef = useRef<FilterValues>({
-    fuelId: "3201", idDistrito: "", idMunicipio: "", marcaId: "", search: "",
+    fuelId: "3201",
+    idDistrito: "",
+    idMunicipio: "",
+    marcaId: "",
+    search: "",
   });
 
   const flyToDistrito = useCallback((id: string) => {
@@ -89,150 +149,213 @@ export default function Home() {
   }, []);
 
   const fetchPostos = useCallback(async (f: FilterValues) => {
-    const temDistrito  = !!f.idDistrito;
+    const temDistrito = !!f.idDistrito;
     const temMunicipio = !!f.idMunicipio;
-    const temMarca     = !!f.marcaId;
-    const podeSearch   =
-      (temDistrito && temMunicipio) ||
-      (temDistrito && temMarca)     ||
-      !!f.search;
+    const temMarca = !!f.marcaId;
+    const podeSearch =
+      (temDistrito && temMunicipio) || (temDistrito && temMarca) || !!f.search;
 
-    if (!podeSearch) { setPostos([]); return; }
+    if (!podeSearch) {
+      setPostos([]);
+      return;
+    }
 
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
+
     try {
       const params = new URLSearchParams();
       params.set("fuelId", f.fuelId || "3201");
-      if (f.idDistrito)  params.set("idDistrito",  f.idDistrito);
+      if (f.idDistrito) params.set("idDistrito", f.idDistrito);
       if (f.idMunicipio) params.set("idMunicipio", f.idMunicipio);
-      if (f.marcaId)     params.set("marcaId",     f.marcaId);
-      if (f.search)      params.set("search",      f.search);
+      if (f.marcaId) params.set("marcaId", f.marcaId);
+      if (f.search) params.set("search", f.search);
 
-      const res  = await fetch(`/api/combustivel?${params}`);
+      const res = await fetch(`/api/combustivel?${params}`);
       const json = await res.json();
 
       if (!json.ok) throw new Error(json.error ?? "Erro desconhecido");
 
-      const filtered = (json.data as Posto[]).filter(p => {
+      const filtered = (json.data as Posto[]).filter((p) => {
         if (p.preco !== null && p.preco <= 0) return false;
+
         if (f.idDistrito && p.lat !== null && p.lng !== null) {
           const db = DISTRITO_BOUNDS[f.idDistrito];
-          if (db && (p.lat < db[0] || p.lat > db[1] || p.lng < db[2] || p.lng > db[3])) return false;
+          if (
+            db &&
+            (p.lat < db[0] || p.lat > db[1] || p.lng < db[2] || p.lng > db[3])
+          ) {
+            return false;
+          }
         }
+
         return true;
       });
 
       setPostos(filtered);
-    } catch (e) { setError(String(e)); setPostos([]); }
-    finally { setLoading(false); }
+    } catch (e) {
+      setError(String(e));
+      setPostos([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   function handleReset() {
-    filtersRef.current = { fuelId: "3201", idDistrito: "", idMunicipio: "", marcaId: "", search: "" };
-    setPostos([]); setError("");
-    setDistritoAtivo(""); setMunicipioAtivo("");
-    setFuelId("3201"); setOrdenacao("gasolina_asc");
+    filtersRef.current = {
+      fuelId: "3201",
+      idDistrito: "",
+      idMunicipio: "",
+      marcaId: "",
+      search: "",
+    };
+    setPostos([]);
+    setError("");
+    setDistritoAtivo("");
+    setMunicipioAtivo("");
+    setFuelId("3201");
+    setOrdenacao("gasolina_asc");
   }
 
-  const handleDistritoClick = useCallback((nome: string, id?: string) => {
-    if (ignoreMapClicksRef.current) return; // ← ignora clicks durante flyTo
-    const newF: FilterValues = {
-      ...filtersRef.current, fuelId, idDistrito: id ?? "", idMunicipio: "",
-    };
-    filtersRef.current = newF;
-    setDistritoAtivo(id ?? "");
-    setMunicipioAtivo("");
-    if (filtersRef.current.marcaId) {
-      fetchPostos(newF);
-    } else {
-      setPostos([]);
-    }
-  }, [fetchPostos, fuelId]);
+  const handleDistritoClick = useCallback(
+    (nome: string, id?: string) => {
+      if (ignoreMapClicksRef.current) return;
 
-const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
-  if (ignoreMapClicksRef.current) return;
+      const newF: FilterValues = {
+        ...filtersRef.current,
+        fuelId,
+        idDistrito: id ?? "",
+        idMunicipio: "",
+      };
 
-  // 1. Resolver ID
-  let concelhoId = "";
-  try {
-    const lista = await getMunicipios(Number(distritoId));
-    const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFC").replace(/[^a-z0-9 ]/g, "").trim();
-    const target = norm(concelhoNome);
-    const found = lista.find((m: any) => norm(m.Descritivo) === target);
-    if (found) concelhoId = String(found.Id);
-  } catch {}
+      filtersRef.current = newF;
+      setDistritoAtivo(id ?? "");
+      setMunicipioAtivo("");
 
-  // 2. Atualização atómica do estado (React state batches)
-  setDistritoAtivo(distritoId);
-  setMunicipioAtivo(concelhoId);
-  
-  // 3. Criar objeto de filtro e atualizar a ref
-  const novoFiltro: FilterValues = {
-    ...filtersRef.current,
-    idDistrito: distritoId,
-    idMunicipio: concelhoId,
-  };
-  filtersRef.current = novoFiltro;
+      if (filtersRef.current.marcaId) {
+        fetchPostos(newF);
+      } else {
+        setPostos([]);
+      }
+    },
+    [fetchPostos, fuelId]
+  );
 
-  // 4. Disparar fetch diretamente com o novo objeto
-  await fetchPostos(novoFiltro);
-}, [fetchPostos]);
-  const handleFilterChange = useCallback((f: FilterValues) => {
-    const distritoMudou = f.idDistrito  !== filtersRef.current.idDistrito;
-    const concelhoMudou = f.idMunicipio !== filtersRef.current.idMunicipio;
-    filtersRef.current = f;
-    setFuelId(f.fuelId);
-    setDistritoAtivo(f.idDistrito);
-    setMunicipioAtivo(f.idMunicipio);
+  const handleConcelhoClick = useCallback(
+    async (distritoId: string, concelhoNome: string) => {
+      if (ignoreMapClicksRef.current) return;
 
-    if (concelhoMudou && f.idMunicipio && f.idDistrito) {
+      let concelhoId = "";
+
+      try {
+        const lista = await getMunicipios(Number(distritoId));
+        const target = normText(concelhoNome);
+
+        const found = (lista as any[]).find(
+          (m) => normText(m.Descritivo ?? "") === target
+        );
+
+        if (found) {
+          concelhoId = String(found.Id);
+        }
+      } catch {
+        concelhoId = "";
+      }
+
+      const novoFiltro: FilterValues = {
+        ...filtersRef.current,
+        fuelId,
+        idDistrito: distritoId,
+        idMunicipio: concelhoId,
+      };
+
+      filtersRef.current = novoFiltro;
+      setDistritoAtivo(distritoId);
+      setMunicipioAtivo(concelhoId);
+
+      if (concelhoId) {
+        fetchPostos(novoFiltro);
+      } else {
+        setPostos([]);
+      }
+    },
+    [fetchPostos, fuelId]
+  );
+
+  const handleFilterChange = useCallback(
+    (f: FilterValues) => {
+      const distritoMudou = f.idDistrito !== filtersRef.current.idDistrito;
+      const concelhoMudou = f.idMunicipio !== filtersRef.current.idMunicipio;
+
+      filtersRef.current = f;
+      setFuelId(f.fuelId);
+      setDistritoAtivo(f.idDistrito);
+      setMunicipioAtivo(f.idMunicipio);
+
+      if (concelhoMudou && f.idMunicipio && f.idDistrito) {
+        ignoreMapClicksRef.current = true;
+        setTimeout(() => {
+          ignoreMapClicksRef.current = false;
+        }, 2000);
+
+        getMunicipios(Number(f.idDistrito)).then((lista) => {
+          const m = (lista as any[]).find((x) => String(x.Id) === f.idMunicipio);
+          if (m) flyToConcelho(f.idDistrito, m.Descritivo);
+        });
+      } else if (distritoMudou && f.idDistrito) {
+        ignoreMapClicksRef.current = true;
+        setTimeout(() => {
+          ignoreMapClicksRef.current = false;
+        }, 2000);
+
+        flyToDistrito(f.idDistrito);
+      }
+    },
+    [flyToDistrito, flyToConcelho]
+  );
+
+  const handleSearch = useCallback(
+    (f: FilterValues) => {
+      filtersRef.current = f;
       ignoreMapClicksRef.current = true;
-      setTimeout(() => { ignoreMapClicksRef.current = false; }, 2000);
-      getMunicipios(Number(f.idDistrito)).then(lista => {
-        const m = (lista as any[]).find(x => String(x.Id) === f.idMunicipio);
-        if (m) flyToConcelho(f.idDistrito, m.Descritivo);
-      });
-    } else if (distritoMudou && f.idDistrito) {
-      ignoreMapClicksRef.current = true;
-      setTimeout(() => { ignoreMapClicksRef.current = false; }, 2000);
-      flyToDistrito(f.idDistrito);
-    }
-  }, [flyToDistrito, flyToConcelho]);
-
-  const handleSearch = useCallback((f: FilterValues) => {
-    filtersRef.current = f;
-    // Bloqueia clicks do mapa enquanto o flyTo anima
-    ignoreMapClicksRef.current = true;
-    setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
-    fetchPostos(f);
-  }, [fetchPostos]);
+      setTimeout(() => {
+        ignoreMapClicksRef.current = false;
+      }, 1500);
+      fetchPostos(f);
+    },
+    [fetchPostos]
+  );
 
   // ── Sincroniza mapa mobile quando abre ──
-useEffect(() => {
-  if (!mapaOpen) return;
-  // Usa filtersRef para evitar closure stale
-  const distrito  = filtersRef.current.idDistrito;
-  const municipio = filtersRef.current.idMunicipio;
-  let attempts = 0;
-  const tryFly = () => {
-    attempts++;
-    mapInvalidateRefMobile.current?.();
-    if (!mapFlyRefMobile.current) {
-      if (attempts < 15) setTimeout(tryFly, 200);
-      return;
-    }
-    if (municipio && distrito) {
-      getMunicipios(Number(distrito)).then(lista => {
-        const m = (lista as any[]).find(x => String(x.Id) === municipio);
-        if (m) mapFlyRefMobile.current?.flyToConcelho(distrito, m.Descritivo);
-      });
-    } else if (distrito) {
-      mapFlyRefMobile.current.flyToDistrito(distrito);
-    }
-  };
-  const t = setTimeout(tryFly, 150);
-  return () => clearTimeout(t);
-}, [mapaOpen]);
+  useEffect(() => {
+    if (!mapaOpen) return;
+
+    const distrito = filtersRef.current.idDistrito;
+    const municipio = filtersRef.current.idMunicipio;
+    let attempts = 0;
+
+    const tryFly = () => {
+      attempts++;
+      mapInvalidateRefMobile.current?.();
+
+      if (!mapFlyRefMobile.current) {
+        if (attempts < 15) setTimeout(tryFly, 200);
+        return;
+      }
+
+      if (municipio && distrito) {
+        getMunicipios(Number(distrito)).then((lista) => {
+          const m = (lista as any[]).find((x) => String(x.Id) === municipio);
+          if (m) mapFlyRefMobile.current?.flyToConcelho(distrito, m.Descritivo);
+        });
+      } else if (distrito) {
+        mapFlyRefMobile.current.flyToDistrito(distrito);
+      }
+    };
+
+    const t = setTimeout(tryFly, 150);
+    return () => clearTimeout(t);
+  }, [mapaOpen]);
 
   function handleCopy(addr: string) {
     navigator.clipboard.writeText(addr);
@@ -241,16 +364,19 @@ useEffect(() => {
   }
 
   const tipoAtivo: "gasolina" | "gasoleo" | "gpl" | null =
-    ordenacao === "gasolina_asc" ? "gasolina" :
-    ordenacao === "gasoleo_asc"  ? "gasoleo"  :
-    ordenacao === "gpl_asc"      ? "gpl"      : null;
+    ordenacao === "gasolina_asc"
+      ? "gasolina"
+      : ordenacao === "gasoleo_asc"
+      ? "gasoleo"
+      : ordenacao === "gpl_asc"
+      ? "gpl"
+      : null;
 
-  const postosVisiveis = tipoAtivo === "gpl"
-    ? postos.filter(p => temCombustivel(p, "gpl"))
-    : postos;
+  const postosVisiveis =
+    tipoAtivo === "gpl" ? postos.filter((p) => temCombustivel(p, "gpl")) : postos;
 
   const precosVisiveis = postosVisiveis
-    .map(p => {
+    .map((p) => {
       if (!tipoAtivo) return p.preco;
       const pr = precoRelevante(p, tipoAtivo);
       return pr === Infinity ? null : pr;
@@ -261,10 +387,14 @@ useEffect(() => {
 
   const cheapestPrice: number | null = (() => {
     if (!tipoAtivo) {
-      const p = postosVisiveis.find(p => p.preco === minP);
+      const p = postosVisiveis.find((p) => p.preco === minP);
       return p?.preco ?? null;
     }
-    const p = postosVisiveis.find(p => precoRelevante(p, tipoAtivo) === minP);
+
+    const p = postosVisiveis.find(
+      (p) => precoRelevante(p, tipoAtivo) === minP
+    );
+
     if (!p) return null;
     return minP;
   })();
@@ -276,7 +406,9 @@ useEffect(() => {
 
   const mostrarPins =
     municipioAtivo !== "" ||
-    (distritoAtivo !== "" && filtersRef.current.marcaId !== "" && municipioAtivo === "");
+    (distritoAtivo !== "" &&
+      filtersRef.current.marcaId !== "" &&
+      municipioAtivo === "");
 
   const mostrarPinsDistrito =
     distritoAtivo !== "" &&
@@ -285,8 +417,8 @@ useEffect(() => {
 
   const SORT_BTNS = [
     { label: "⬇ Gasolina", value: "gasolina_asc" },
-    { label: "⬇ Gasóleo",  value: "gasoleo_asc"  },
-    { label: "⬇ GPL",      value: "gpl_asc"       },
+    { label: "⬇ Gasóleo", value: "gasoleo_asc" },
+    { label: "⬇ GPL", value: "gpl_asc" },
   ] as const;
 
   const mapProps = {
@@ -298,58 +430,99 @@ useEffect(() => {
   };
 
   const themeBtn = (
-    <button onClick={toggle} style={{
-      background:"transparent",
-      color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
-      border: dark ? "1px solid rgba(255,255,255,0.15)" : "1px solid var(--border)",
-      borderRadius:"0.6rem", padding:"0.35rem 0.6rem",
-      cursor:"pointer", display:"flex", alignItems:"center",
-    }}>
+    <button
+      onClick={toggle}
+      style={{
+        background: "transparent",
+        color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
+        border: dark
+          ? "1px solid rgba(255,255,255,0.15)"
+          : "1px solid var(--border)",
+        borderRadius: "0.6rem",
+        padding: "0.35rem 0.6rem",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+      }}
+    >
       {dark ? (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="4"/>
-          <line x1="12" y1="2"  x2="12" y2="5"/>
-          <line x1="12" y1="19" x2="12" y2="22"/>
-          <line x1="4.22"  y1="4.22"  x2="6.34"  y2="6.34"/>
-          <line x1="17.66" y1="17.66" x2="19.78" y2="19.78"/>
-          <line x1="2"  y1="12" x2="5"  y2="12"/>
-          <line x1="19" y1="12" x2="22" y2="12"/>
-          <line x1="4.22"  y1="19.78" x2="6.34"  y2="17.66"/>
-          <line x1="17.66" y1="6.34"  x2="19.78" y2="4.22"/>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="4" />
+          <line x1="12" y1="2" x2="12" y2="5" />
+          <line x1="12" y1="19" x2="12" y2="22" />
+          <line x1="4.22" y1="4.22" x2="6.34" y2="6.34" />
+          <line x1="17.66" y1="17.66" x2="19.78" y2="19.78" />
+          <line x1="2" y1="12" x2="5" y2="12" />
+          <line x1="19" y1="12" x2="22" y2="12" />
+          <line x1="4.22" y1="19.78" x2="6.34" y2="17.66" />
+          <line x1="17.66" y1="6.34" x2="19.78" y2="4.22" />
         </svg>
       ) : (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
         </svg>
       )}
     </button>
   );
 
   const doarBtn = (
-    <button onClick={() => setDoarOpen(true)} style={{
-      background:"transparent",
-      color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
-      border: dark ? "1px solid rgba(255,255,255,0.15)" : "1px solid var(--border)",
-      borderRadius:"0.6rem", padding:"0.35rem 0.6rem",
-      cursor:"pointer", display:"flex", alignItems:"center", gap:"0.4rem",
-      fontSize:"0.72rem", fontWeight:500,
-    }}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
-        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
-        <line x1="6" y1="1" x2="6" y2="4"/>
-        <line x1="10" y1="1" x2="10" y2="4"/>
-        <line x1="14" y1="1" x2="14" y2="4"/>
+    <button
+      onClick={() => setDoarOpen(true)}
+      style={{
+        background: "transparent",
+        color: dark ? "rgba(255,255,255,0.6)" : "var(--text-muted)",
+        border: dark
+          ? "1px solid rgba(255,255,255,0.15)"
+          : "1px solid var(--border)",
+        borderRadius: "0.6rem",
+        padding: "0.35rem 0.6rem",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.4rem",
+        fontSize: "0.72rem",
+        fontWeight: 500,
+      }}
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
+        <line x1="6" y1="1" x2="6" y2="4" />
+        <line x1="10" y1="1" x2="10" y2="4" />
+        <line x1="14" y1="1" x2="14" y2="4" />
       </svg>
     </button>
   );
 
   return (
-    <div style={{ minHeight:"100vh", background:"var(--bg)" }}>
-
+    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <style>{`
         @media (max-width: 900px) {
           .main-grid { grid-template-columns: 1fr !important; }
@@ -372,75 +545,141 @@ useEffect(() => {
       `}</style>
 
       {/* ── TOPBAR ── */}
-      <header style={{
-        background: dark ? "#000000" : "#ffffff",
-        borderBottom: dark ? "1px solid rgba(255,255,255,0.07)" : "1px solid #e5e0d8",
-        position:"sticky", top:0, zIndex:40, height:HEADER_H,
-        display:"flex", alignItems:"center",
-      }}>
-        <div style={{
-          maxWidth:1600, margin:"0 auto", padding:"0 1.25rem", width:"100%",
-          display:"flex", alignItems:"center", justifyContent:"space-between", gap:"0.75rem",
-        }}>
-          <div style={{ display:"flex", alignItems:"center", height:HEADER_H }}>
+      <header
+        style={{
+          background: dark ? "#000000" : "#ffffff",
+          borderBottom: dark
+            ? "1px solid rgba(255,255,255,0.07)"
+            : "1px solid #e5e0d8",
+          position: "sticky",
+          top: 0,
+          zIndex: 40,
+          height: HEADER_H,
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1600,
+            margin: "0 auto",
+            padding: "0 1.25rem",
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.75rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", height: HEADER_H }}>
             <img
               src={dark ? "/logo-dark.png" : "/logo-light.png"}
               alt="Zirgolina"
-              style={{ height:HEADER_H - 4, width:"auto", maxWidth:220,
-                display:"block", objectFit:"contain", objectPosition:"left center" }}
-              onError={e => {
+              style={{
+                height: HEADER_H - 4,
+                width: "auto",
+                maxWidth: 220,
+                display: "block",
+                objectFit: "contain",
+                objectPosition: "left center",
+              }}
+              onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
-                const fb = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                const fb = (e.target as HTMLImageElement)
+                  .nextElementSibling as HTMLElement;
                 if (fb) fb.style.display = "block";
               }}
             />
-            <span style={{
-              display:"none",
-              fontFamily:"Georgia,'Times New Roman',serif", fontStyle:"italic",
-              fontWeight:700, fontSize:"1.9rem",
-              color: dark ? "#22c55e" : "#16a34a",
-              letterSpacing:"-0.02em", lineHeight:1,
-            }}>zirgolina</span>
+            <span
+              style={{
+                display: "none",
+                fontFamily: "Georgia,'Times New Roman',serif",
+                fontStyle: "italic",
+                fontWeight: 700,
+                fontSize: "1.9rem",
+                color: dark ? "#22c55e" : "#16a34a",
+                letterSpacing: "-0.02em",
+                lineHeight: 1,
+              }}
+            >
+              zirgolina
+            </span>
           </div>
 
-          <div style={{ flex:1 }} />
+          <div style={{ flex: 1 }} />
 
-          <div className="mobile-actions" style={{ gap:"0.5rem" }}>
-            <button onClick={() => {
-              setMapaOpen(true);
-              setCalcOpen(false);
-              setTimeout(() => mapInvalidateRefMobile.current?.(), 200);
-            }} style={{
-              background:"var(--accent)", color:"#fff",
-              border:"none", borderRadius:"0.6rem",
-              padding:"0.35rem 0.7rem", fontSize:"0.72rem", fontWeight:600, cursor:"pointer",
-              display:"flex", alignItems:"center", gap:"0.3rem",
-            }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
-                <line x1="8" y1="2" x2="8" y2="18"/>
-                <line x1="16" y1="6" x2="16" y2="22"/>
+          <div className="mobile-actions" style={{ gap: "0.5rem" }}>
+            <button
+              onClick={() => {
+                setMapaOpen(true);
+                setCalcOpen(false);
+                setTimeout(() => mapInvalidateRefMobile.current?.(), 200);
+              }}
+              style={{
+                background: "var(--accent)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "0.6rem",
+                padding: "0.35rem 0.7rem",
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.3rem",
+              }}
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                <line x1="8" y1="2" x2="8" y2="18" />
+                <line x1="16" y1="6" x2="16" y2="22" />
               </svg>
               Mapa
             </button>
 
-            <button onClick={() => { setCalcOpen(true); setMapaOpen(false); }} style={{
-              background:"transparent", color:"var(--text-muted)",
-              border:"1px solid var(--border)", borderRadius:"0.6rem",
-              padding:"0.35rem 0.6rem", cursor:"pointer",
-              display:"flex", alignItems:"center",
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4" y="2" width="16" height="20" rx="2"/>
-                <rect x="7" y="5" width="10" height="4" rx="1"/>
-                <circle cx="8"  cy="14" r="0.8" fill="currentColor"/>
-                <circle cx="12" cy="14" r="0.8" fill="currentColor"/>
-                <circle cx="16" cy="14" r="0.8" fill="currentColor"/>
-                <circle cx="8"  cy="18" r="0.8" fill="currentColor"/>
-                <circle cx="12" cy="18" r="0.8" fill="currentColor"/>
-                <circle cx="16" cy="18" r="0.8" fill="currentColor"/>
+            <button
+              onClick={() => {
+                setCalcOpen(true);
+                setMapaOpen(false);
+              }}
+              style={{
+                background: "transparent",
+                color: "var(--text-muted)",
+                border: "1px solid var(--border)",
+                borderRadius: "0.6rem",
+                padding: "0.35rem 0.6rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="4" y="2" width="16" height="20" rx="2" />
+                <rect x="7" y="5" width="10" height="4" rx="1" />
+                <circle cx="8" cy="14" r="0.8" fill="currentColor" />
+                <circle cx="12" cy="14" r="0.8" fill="currentColor" />
+                <circle cx="16" cy="14" r="0.8" fill="currentColor" />
+                <circle cx="8" cy="18" r="0.8" fill="currentColor" />
+                <circle cx="12" cy="18" r="0.8" fill="currentColor" />
+                <circle cx="16" cy="18" r="0.8" fill="currentColor" />
               </svg>
             </button>
 
@@ -448,7 +687,7 @@ useEffect(() => {
             {themeBtn}
           </div>
 
-          <div className="desktop-only" style={{ display:"flex", gap:"0.5rem" }}>
+          <div className="desktop-only" style={{ display: "flex", gap: "0.5rem" }}>
             {doarBtn}
             {themeBtn}
           </div>
@@ -456,14 +695,18 @@ useEffect(() => {
       </header>
 
       {/* ── MAIN GRID ── */}
-      <div className="main-grid" style={{
-        maxWidth:1600, margin:"0 auto", padding:"1rem 1.25rem",
-        display:"grid",
-        gridTemplateColumns:"280px 540px 1fr",
-        gap:"1rem",
-        alignItems:"start",
-      }}>
-
+      <div
+        className="main-grid"
+        style={{
+          maxWidth: 1600,
+          margin: "0 auto",
+          padding: "1rem 1.25rem",
+          display: "grid",
+          gridTemplateColumns: "280px 540px 1fr",
+          gap: "1rem",
+          alignItems: "start",
+        }}
+      >
         {/* Col 1 — SIDEBAR filtros */}
         <div className="filtros-col">
           <FilterPanel
@@ -479,75 +722,165 @@ useEffect(() => {
         </div>
 
         {/* Col 2 — LISTA */}
-        <div className="lista-col" style={{ display:"flex", flexDirection:"column", gap:"0.55rem", minWidth:0 }}>
-          <div className="card" style={{ padding:"0.45rem 0.875rem",
-            display:"flex", alignItems:"center", gap:"0.5rem" }}>
-            <span style={{
-              width:7, height:7, borderRadius:"50%", flexShrink:0, display:"inline-block",
-              background: loading ? "#f97316" : distritoAtivo ? "#22c55e" : "var(--text-muted)",
-            }} />
-            <span className="text-muted" style={{ fontSize:"0.72rem" }}>
-              {loading ? "A carregar…" : distritoAtivo ? `${postosVisiveis.length} postos` : "Selecione um distrito"}
+        <div
+          className="lista-col"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.55rem",
+            minWidth: 0,
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              padding: "0.45rem 0.875rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                flexShrink: 0,
+                display: "inline-block",
+                background: loading
+                  ? "#f97316"
+                  : distritoAtivo
+                  ? "#22c55e"
+                  : "var(--text-muted)",
+              }}
+            />
+            <span className="text-muted" style={{ fontSize: "0.72rem" }}>
+              {loading
+                ? "A carregar…"
+                : distritoAtivo
+                ? `${postosVisiveis.length} postos`
+                : "Selecione um distrito"}
             </span>
           </div>
 
           {!distritoAtivo && !loading && postos.length === 0 && !error && (
-            <div className="card" style={{ padding:"2.5rem 1.5rem", textAlign:"center",
-              display:"flex", flexDirection:"column", alignItems:"center", gap:"0.6rem" }}>
+            <div
+              className="card"
+              style={{
+                padding: "2.5rem 1.5rem",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "0.6rem",
+              }}
+            >
               <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                <circle cx="20" cy="20" r="18" stroke="var(--border)" strokeWidth="1.5"/>
-                <path d="M20 10 L20 20 L27 24" stroke="var(--accent)"
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle
+                  cx="20"
+                  cy="20"
+                  r="18"
+                  stroke="var(--border)"
+                  strokeWidth="1.5"
+                />
+                <path
+                  d="M20 10 L20 20 L27 24"
+                  stroke="var(--accent)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
-              <p style={{ fontWeight:700, fontSize:"0.9rem" }}>Selecione um distrito</p>
-              <p className="text-muted" style={{ fontSize:"0.74rem" }}>
+              <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                Selecione um distrito
+              </p>
+              <p className="text-muted" style={{ fontSize: "0.74rem" }}>
                 Clique no mapa ou escolha nos filtros.
               </p>
             </div>
           )}
 
           {distritoAtivo && !loading && postos.length === 0 && !error && (
-            <div className="card" style={{ padding:"1.5rem", textAlign:"center",
-              display:"flex", flexDirection:"column", alignItems:"center", gap:"0.4rem" }}>
-              <p style={{ fontWeight:700, fontSize:"0.82rem" }}>Escolha concelho ou marca</p>
-              <p className="text-muted" style={{ fontSize:"0.72rem" }}>
-                Selecione um concelho <strong>ou</strong> uma marca e clique <strong>Pesquisar</strong>.
+            <div
+              className="card"
+              style={{
+                padding: "1.5rem",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "0.4rem",
+              }}
+            >
+              <p style={{ fontWeight: 700, fontSize: "0.82rem" }}>
+                Escolha concelho ou marca
+              </p>
+              <p className="text-muted" style={{ fontSize: "0.72rem" }}>
+                Selecione um concelho <strong>ou</strong> uma marca e clique{" "}
+                <strong>Pesquisar</strong>.
               </p>
             </div>
           )}
 
           {postos.length > 0 && (
-            <div style={{ display:"flex", flexDirection:"column", gap:"0.35rem" }}>
-              <div style={{ display:"flex", gap:"0.3rem" }}>
-                {SORT_BTNS.map(opt => {
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+              <div style={{ display: "flex", gap: "0.3rem" }}>
+                {SORT_BTNS.map((opt) => {
                   const active = ordenacao === opt.value;
-                  const colors: Record<string, { bg: string; border: string; text: string }> = {
+                  const colors: Record<
+                    string,
+                    { bg: string; border: string; text: string }
+                  > = {
                     gasolina_asc: {
-                      bg:     active ? "var(--accent)"                : "transparent",
-                      border: active ? "var(--accent)"                : "var(--border)",
-                      text:   active ? "#fff"                         : "var(--text-muted)",
+                      bg: active ? "var(--accent)" : "transparent",
+                      border: active ? "var(--accent)" : "var(--border)",
+                      text: active ? "#fff" : "var(--text-muted)",
                     },
                     gasoleo_asc: {
-                      bg:     active ? (dark ? "#ffffff" : "#000000") : "transparent",
-                      border: active ? (dark ? "#ffffff" : "#000000") : "var(--border)",
-                      text:   active ? (dark ? "#000000" : "#ffffff") : "var(--text-muted)",
+                      bg: active
+                        ? dark
+                          ? "#ffffff"
+                          : "#000000"
+                        : "transparent",
+                      border: active
+                        ? dark
+                          ? "#ffffff"
+                          : "#000000"
+                        : "var(--border)",
+                      text: active
+                        ? dark
+                          ? "#000000"
+                          : "#ffffff"
+                        : "var(--text-muted)",
                     },
                     gpl_asc: {
-                      bg:     active ? "#00A8FF"                      : "transparent",
-                      border: active ? "#00A8FF"                      : "var(--border)",
-                      text:   active ? "#ffffff"                      : "var(--text-muted)",
+                      bg: active ? "#00A8FF" : "transparent",
+                      border: active ? "#00A8FF" : "var(--border)",
+                      text: active ? "#ffffff" : "var(--text-muted)",
                     },
                   };
+
                   const c = colors[opt.value];
+
                   return (
-                    <button key={opt.value} onClick={() => setOrdenacao(opt.value)}
+                    <button
+                      key={opt.value}
+                      onClick={() => setOrdenacao(opt.value)}
                       className="btn-ghost"
                       style={{
-                        fontSize:"0.68rem", padding:"0.25rem 0.5rem", flex:1,
-                        display:"flex", alignItems:"center", justifyContent:"center", gap:"0.3rem",
-                        background: c.bg, color: c.text, borderColor: c.border,
+                        fontSize: "0.68rem",
+                        padding: "0.25rem 0.5rem",
+                        flex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.3rem",
+                        background: c.bg,
+                        color: c.text,
+                        borderColor: c.border,
                         transition: "all 0.15s ease",
-                      }}>
+                      }}
+                    >
                       {opt.label}
                     </button>
                   );
@@ -557,45 +890,76 @@ useEffect(() => {
           )}
 
           {error && (
-            <div className="card" style={{ padding:"0.65rem", color:"#f87171", fontSize:"0.73rem" }}>
+            <div
+              className="card"
+              style={{ padding: "0.65rem", color: "#f87171", fontSize: "0.73rem" }}
+            >
               {error}
             </div>
           )}
+
           {loading && (
-            <div className="card" style={{ padding:"1.5rem", textAlign:"center" }}>
-              <div style={{ width:16, height:16, border:"2px solid var(--accent)",
-                borderTopColor:"transparent", borderRadius:"50%",
-                animation:"spin 0.8s linear infinite", margin:"0 auto 0.4rem" }} />
-              <p className="text-muted" style={{ fontSize:"0.68rem" }}>A carregar…</p>
+            <div className="card" style={{ padding: "1.5rem", textAlign: "center" }}>
+              <div
+                style={{
+                  width: 16,
+                  height: 16,
+                  border: "2px solid var(--accent)",
+                  borderTopColor: "transparent",
+                  borderRadius: "50%",
+                  animation: "spin 0.8s linear infinite",
+                  margin: "0 auto 0.4rem",
+                }}
+              />
+              <p className="text-muted" style={{ fontSize: "0.68rem" }}>
+                A carregar…
+              </p>
             </div>
           )}
+
           {!loading && postos.length > 0 && postosVisiveis.length === 0 && !error && (
-            <div className="card" style={{ padding:"1.25rem", textAlign:"center" }}>
-              <p style={{ fontWeight:700, fontSize:"0.8rem" }}>Sem postos com GPL</p>
-              <p className="text-muted" style={{ fontSize:"0.68rem", marginTop:"0.2rem" }}>
+            <div className="card" style={{ padding: "1.25rem", textAlign: "center" }}>
+              <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>
+                Sem postos com GPL
+              </p>
+              <p
+                className="text-muted"
+                style={{ fontSize: "0.68rem", marginTop: "0.2rem" }}
+              >
                 Nenhum posto nesta área tem GPL registado.
               </p>
             </div>
           )}
 
-          {!loading && sortedPostos.map(posto => (
-            <PostoCard key={posto.id} posto={posto} tipoAtivo={tipoAtivo} />
-          ))}
+          {!loading &&
+            sortedPostos.map((posto) => (
+              <PostoCard key={posto.id} posto={posto} tipoAtivo={tipoAtivo} />
+            ))}
 
           {postos.length > 0 && (
-            <p className="text-muted"
-              style={{ fontSize:"0.56rem", textAlign:"center", padding:"0.2rem 0 0.5rem" }}>
+            <p
+              className="text-muted"
+              style={{
+                fontSize: "0.56rem",
+                textAlign: "center",
+                padding: "0.2rem 0 0.5rem",
+              }}
+            >
               Fonte: DGEG · precoscombustiveis.dgeg.gov.pt
             </p>
           )}
         </div>
 
         {/* Col 3 — MAPA desktop */}
-        <div className="card mapa-col" style={{
-          overflow:"hidden", position:"sticky",
-          top: HEADER_H + 8,
-          height:`calc(100vh - ${HEADER_H + 24}px)`,
-        }}>
+        <div
+          className="card mapa-col"
+          style={{
+            overflow: "hidden",
+            position: "sticky",
+            top: HEADER_H + 8,
+            height: `calc(100vh - ${HEADER_H + 24}px)`,
+          }}
+        >
           <MapView
             key="desktop"
             {...mapProps}
@@ -605,58 +969,102 @@ useEffect(() => {
         </div>
       </div>
 
-{/* ── MODAL MAPA (mobile) — sempre montado, translateY para Leaflet ter dimensões ── */}
-<div style={{
-  position: "fixed",
-  inset: 0,
-  zIndex: 100,
-  background: "var(--bg)",
-  display: "flex",
-  flexDirection: "column",
-  transform: mapaOpen ? "translateY(0)" : "translateY(100%)",
-  transition: "transform 0.25s ease",
-  pointerEvents: mapaOpen ? "auto" : "none",
-}}>
-  <div style={{
-    display:"flex", alignItems:"center", justifyContent:"space-between",
-    padding:"0 1rem", height:HEADER_H,
-    borderBottom:"1px solid var(--border)", flexShrink:0,
-  }}>
-    <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Mapa</span>
-    <button onClick={() => setMapaOpen(false)} style={{
-      background:"none", border:"none", cursor:"pointer",
-      color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
-    }}>✕</button>
-  </div>
-  <div style={{ flex:1, overflow:"hidden" }}>
-    <MapView
-      key="mobile"
-      {...mapProps}
-      flyRef={mapFlyRefMobile}
-      invalidateRef={mapInvalidateRefMobile}
-    />
-  </div>
-</div>
+      {/* ── MODAL MAPA (mobile) — sempre montado, translateY para Leaflet ter dimensões ── */}
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 100,
+          background: "var(--bg)",
+          display: "flex",
+          flexDirection: "column",
+          transform: mapaOpen ? "translateY(0)" : "translateY(100%)",
+          transition: "transform 0.25s ease",
+          pointerEvents: mapaOpen ? "auto" : "none",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 1rem",
+            height: HEADER_H,
+            borderBottom: "1px solid var(--border)",
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>Mapa</span>
+          <button
+            onClick={() => setMapaOpen(false)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-muted)",
+              fontSize: "1.4rem",
+              lineHeight: 1,
+              padding: "0.2rem",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          <MapView
+            key="mobile"
+            {...mapProps}
+            flyRef={mapFlyRefMobile}
+            invalidateRef={mapInvalidateRefMobile}
+          />
+        </div>
+      </div>
 
       {/* ── MODAL CALCULADORA (mobile) ── */}
       {calcOpen && (
-        <div style={{
-          position:"fixed", inset:0, zIndex:100,
-          background:"var(--bg)", display:"flex", flexDirection:"column",
-          overflowY:"auto",
-        }}>
-          <div style={{
-            display:"flex", alignItems:"center", justifyContent:"space-between",
-            padding:"0 1rem", height:HEADER_H,
-            borderBottom:"1px solid var(--border)", flexShrink:0,
-          }}>
-            <span style={{ fontWeight:700, fontSize:"0.85rem" }}>Calculadora</span>
-            <button onClick={() => setCalcOpen(false)} style={{
-              background:"none", border:"none", cursor:"pointer",
-              color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1, padding:"0.2rem",
-            }}>✕</button>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            background: "var(--bg)",
+            display: "flex",
+            flexDirection: "column",
+            overflowY: "auto",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "0 1rem",
+              height: HEADER_H,
+              borderBottom: "1px solid var(--border)",
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+              Calculadora
+            </span>
+            <button
+              onClick={() => setCalcOpen(false)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--text-muted)",
+                fontSize: "1.4rem",
+                lineHeight: 1,
+                padding: "0.2rem",
+              }}
+            >
+              ✕
+            </button>
           </div>
-          <div style={{ flex:1, padding:"1rem" }}>
+
+          <div style={{ flex: 1, padding: "1rem" }}>
             <Calculadora />
           </div>
         </div>
@@ -664,62 +1072,153 @@ useEffect(() => {
 
       {/* ── POPUP DOAR ── */}
       {doarOpen && (
-        <div onClick={() => setDoarOpen(false)} style={{
-          position:"fixed", inset:0, zIndex:200,
-          background:"rgba(0,0,0,0.55)", backdropFilter:"blur(3px)",
-          display:"flex", alignItems:"center", justifyContent:"center", padding:"1rem",
-        }}>
-          <div onClick={e => e.stopPropagation()} className="card" style={{
-            maxWidth:480, width:"100%",
-            padding:"1.5rem", display:"flex", flexDirection:"column", gap:"1rem",
-            maxHeight:"90vh", overflowY:"auto",
-          }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ fontWeight:700, fontSize:"0.95rem" }}>Apoiar o projeto 💚</span>
-              <button onClick={() => setDoarOpen(false)} style={{
-                background:"none", border:"none", cursor:"pointer",
-                color:"var(--text-muted)", fontSize:"1.4rem", lineHeight:1,
-              }}>✕</button>
+        <div
+          onClick={() => setDoarOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            background: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(3px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="card"
+            style={{
+              maxWidth: 480,
+              width: "100%",
+              padding: "1.5rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>
+                Apoiar o projeto 💚
+              </span>
+              <button
+                onClick={() => setDoarOpen(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--text-muted)",
+                  fontSize: "1.4rem",
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
             </div>
-            <p style={{ fontSize:"0.78rem", lineHeight:1.6, color:"var(--text)", margin:0 }}>
-              Esta aplicação é completamente gratuita e não tem qualquer publicidade, é apenas
-              carregada de boa vontade! Se queres ajudar-me a manter este projeto, tens algumas
-              formas de como contribuir abaixo. Se queres contribuir de outra forma, por favor
-              envia um email para{" "}
-              <a href="mailto:zirgolina@tuta.io" style={{ color:"var(--accent)" }}>
-                zirgolina@tuta.io
-              </a>.
+
+            <p
+              style={{
+                fontSize: "0.78rem",
+                lineHeight: 1.6,
+                color: "var(--text)",
+                margin: 0,
+              }}
+            >
+              Esta aplicação é completamente gratuita e não tem qualquer publicidade,
+              é apenas carregada de boa vontade! Se queres ajudar-me a manter este
+              projeto, tens algumas formas de como contribuir abaixo. Se queres
+              contribuir de outra forma, por favor envia um email para{" "}
+              <a href="mailto:zirgolina@tuta.io" style={{ color: "var(--accent)" }}>
+                [zirgolina@tuta.io](mailto:zirgolina@tuta.io)
+              </a>
+              .
             </p>
+
             {CRIPTO.map(({ label, addr }) => (
-              <div key={label} style={{ display:"flex", flexDirection:"column", gap:"0.3rem" }}>
-                <p className="field-label" style={{ margin:0 }}>{label}</p>
-                <div style={{
-                  display:"flex", alignItems:"center", gap:"0.5rem",
-                  background:"var(--bg-input)", border:"1px solid var(--border)",
-                  borderRadius:"0.5rem", padding:"0.4rem 0.6rem",
-                }}>
-                  <span style={{
-                    fontSize:"0.65rem", fontFamily:"monospace",
-                    color:"var(--text)", flex:1, wordBreak:"break-all",
-                  }}>
+              <div
+                key={label}
+                style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
+              >
+                <p className="field-label" style={{ margin: 0 }}>
+                  {label}
+                </p>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    background: "var(--bg-input)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "0.5rem",
+                    padding: "0.4rem 0.6rem",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.65rem",
+                      fontFamily: "monospace",
+                      color: "var(--text)",
+                      flex: 1,
+                      wordBreak: "break-all",
+                    }}
+                  >
                     {addr}
                   </span>
-                  <button onClick={() => handleCopy(addr)} title="Copiar" style={{
-                    background:"none", border:"none", cursor:"pointer",
-                    color: copiedAddr === addr ? "var(--accent)" : "var(--text-muted)",
-                    flexShrink:0, padding:"0.1rem",
-                    display:"flex", alignItems:"center", transition:"color 0.2s",
-                  }}>
+
+                  <button
+                    onClick={() => handleCopy(addr)}
+                    title="Copiar"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color:
+                        copiedAddr === addr
+                          ? "var(--accent)"
+                          : "var(--text-muted)",
+                      flexShrink: 0,
+                      padding: "0.1rem",
+                      display: "flex",
+                      alignItems: "center",
+                      transition: "color 0.2s",
+                    }}
+                  >
                     {copiedAddr === addr ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
                       </svg>
                     ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="9" y="9" width="13" height="13" rx="2"/>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="9" y="9" width="13" height="13" rx="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
                     )}
                   </button>
@@ -729,7 +1228,6 @@ useEffect(() => {
           </div>
         </div>
       )}
-
     </div>
   );
 }
