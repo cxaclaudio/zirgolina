@@ -152,32 +152,50 @@ export default function Home() {
 // Substitui a tua função handleConcelhoClick atual por esta:
 const handleConcelhoClick = useCallback(async (distritoId: string, concelhoNome: string) => {
   if (ignoreMapClicksRef.current) return;
-  
+
   let concelhoId = "";
+
   try {
     const lista = await getMunicipios(Number(distritoId));
-    // ... [mantém a tua lógica de normalização aqui] ...
-    const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFC").replace(/[^a-z0-9 ]/g, "").trim();
-    const target = norm(concelhoNome);
-    let found = lista.find((m: any) => norm(m.Descritivo) === target);
-    if (found) concelhoId = String(found.Id);
-  } catch {}
 
-  // Criamos o novo objeto de filtros
+    const norm = (s: string) =>
+      (s ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const target = norm(concelhoNome);
+
+    let found =
+      lista.find((m: any) => norm(m.Descritivo) === target) ||
+      lista.find((m: any) => norm(m.Descritivo).startsWith(target)) ||
+      lista.find((m: any) => target.startsWith(norm(m.Descritivo))) ||
+      lista.find((m: any) => norm(m.Descritivo).includes(target)) ||
+      lista.find((m: any) => target.includes(norm(m.Descritivo)));
+
+    if (found) concelhoId = String(found.Id);
+
+    if (!concelhoId) {
+      alert(`Não encontrei ID para o concelho: "${concelhoNome}" no distrito ${distritoId}`);
+      return;
+    }
+  } catch {
+    alert(`Erro a carregar municípios para distrito ${distritoId}`);
+    return;
+  }
+
   const novoFiltro: FilterValues = {
     ...filtersRef.current,
     idDistrito: distritoId,
     idMunicipio: concelhoId,
   };
 
-  // Atualizamos a ref para consistência
   filtersRef.current = novoFiltro;
-
-  // Atualizamos o estado que o FilterPanel escuta (isto força o re-render)
   setDistritoAtivo(distritoId);
   setMunicipioAtivo(concelhoId);
-
-  // Chamamos o fetch com o objeto que acabámos de criar
   fetchPostos(novoFiltro);
 }, [fetchPostos]);
   const handleFilterChange = useCallback((f: FilterValues) => {
