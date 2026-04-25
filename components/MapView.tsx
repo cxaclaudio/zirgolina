@@ -111,13 +111,15 @@ export default function MapView({
       if (!containerRef.current) return;
       if ((containerRef.current as any)._leaflet_id) return;
 
-      const map = L.map(containerRef.current, {
-        zoomControl: true,
-        scrollWheelZoom: true,
-        boxZoom: false,
-        tap: false,
-        tapTolerance: 15,
-      }).setView([39.6, -8.0], 7);
+const mapOptions: any = {
+  zoomControl: true,
+  scrollWheelZoom: true,
+  boxZoom: false,
+  tap: false,
+  tapTolerance: 15,
+};
+
+const map = L.map(containerRef.current, mapOptions).setView([39.6, -8.0], 7);
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19, attribution: "© OSM © CARTO",
