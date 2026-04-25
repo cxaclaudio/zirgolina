@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Posto } from "@/lib/dgeg";
 import { DISTRITO_BOUNDS } from "@/lib/bounds";
 
@@ -38,15 +38,6 @@ const MARCA_CORES: Record<string, string> = {
   "REPSOL":"#C45000","SHELL":"#C8960C",
 };
 
-function normalizeText(s: string): string {
-  return (s ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .normalize("NFC");
-}
-
 function getMarcaCor(marca: string): string {
   const key = Object.keys(MARCA_CORES).find(k => marca.toUpperCase().includes(k));
   return key ? MARCA_CORES[key] : "#22c55e";
@@ -55,13 +46,14 @@ function getMarcaCor(marca: string): string {
 function disCodeToDgeg(disCode: string) { return String(parseInt(disCode, 10)); }
 
 function getDistritoId(nome: string): string | undefined {
-  const norm = normalizeText(nome);
+  const norm = nome.trim().toLowerCase()
+    .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
   for (const [k, v] of Object.entries(NOME_PARA_ID)) {
-    const kn = normalizeText(k);
+    const kn = k.normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
     if (norm === kn) return v;
   }
   for (const [k, v] of Object.entries(NOME_PARA_ID)) {
-    const kn = normalizeText(k);
+    const kn = k.normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
     if (norm.startsWith(kn + " ") || norm.startsWith(kn + ",")) return v;
   }
 }
@@ -98,6 +90,8 @@ export default function MapView({
   const cbConcelho             = useRef(onConcelhoClick);
   const mostrarPinsDistritoRef = useRef(mostrarPinsDistrito);
 
+  const [debugMsg, setDebugMsg] = useState("debug: idle");
+
   useEffect(() => { cbDistrito.current = onDistritoClick; }, [onDistritoClick]);
   useEffect(() => { cbConcelho.current = onConcelhoClick; }, [onConcelhoClick]);
   useEffect(() => { mostrarPinsDistritoRef.current = mostrarPinsDistrito; }, [mostrarPinsDistrito]);
@@ -111,15 +105,9 @@ export default function MapView({
       if (!containerRef.current) return;
       if ((containerRef.current as any)._leaflet_id) return;
 
-const mapOptions: any = {
-  zoomControl: true,
-  scrollWheelZoom: true,
-  boxZoom: false,
-  tap: false,
-  tapTolerance: 15,
-};
-
-const map = L.map(containerRef.current, mapOptions).setView([39.6, -8.0], 7);
+      const map = L.map(containerRef.current, {
+        zoomControl: true, scrollWheelZoom: true, boxZoom: false, tapTolerance: 15,
+      }).setView([39.6, -8.0], 7);
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19, attribution: "© OSM © CARTO",
@@ -163,6 +151,9 @@ const map = L.map(containerRef.current, mapOptions).setView([39.6, -8.0], 7);
               L.DomEvent.stopPropagation(e);
               if (e.originalEvent?.target)
                 (e.originalEvent.target as HTMLElement).style.outline = "none";
+
+              setDebugMsg(`distrito click: ${nome} (${id ?? "?"})`);
+
               map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
               setTimeout(() => {
                 if (map.getZoom() < 9) map.setZoom(9, { animate: true });
@@ -185,7 +176,8 @@ const map = L.map(containerRef.current, mapOptions).setView([39.6, -8.0], 7);
               }
             },
             flyToConcelho: (distritoId: string, concelhoNome: string) => {
-              const norm = normalizeText(concelhoNome);
+              const norm = concelhoNome.toLowerCase()
+                .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
               const layer = concelhoLayerMap[`${distritoId}_${norm}`];
               if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
             },
@@ -207,7 +199,8 @@ const map = L.map(containerRef.current, mapOptions).setView([39.6, -8.0], 7);
               : getDistritoId(disNome) ?? "";
 
             if (distritoId && conNome) {
-              const norm = normalizeText(conNome);
+              const norm = conNome.toLowerCase()
+                .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
               concelhoLayerMap[`${distritoId}_${norm}`] = layer;
             }
 
@@ -221,6 +214,9 @@ const map = L.map(containerRef.current, mapOptions).setView([39.6, -8.0], 7);
               L.DomEvent.stopPropagation(e);
               if (e.originalEvent?.target)
                 (e.originalEvent.target as HTMLElement).style.outline = "none";
+
+              setDebugMsg(`concelho click: ${conNome} | distritoId=${distritoId}`);
+
               map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
               if (distritoId && conNome) cbConcelho.current?.(distritoId, conNome);
             });
@@ -232,7 +228,8 @@ const map = L.map(containerRef.current, mapOptions).setView([39.6, -8.0], 7);
           flyRef.current = {
             flyToDistrito: prev?.flyToDistrito ?? (() => {}),
             flyToConcelho: (distritoId: string, concelhoNome: string) => {
-              const norm = normalizeText(concelhoNome);
+              const norm = concelhoNome.toLowerCase()
+                .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
               const layer = concelhoLayerMap[`${distritoId}_${norm}`];
               if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
             },
@@ -254,9 +251,7 @@ const map = L.map(containerRef.current, mapOptions).setView([39.6, -8.0], 7);
             if (distritosRef.current  && !map.hasLayer(distritosRef.current))  map.addLayer(distritosRef.current);
           }
         }
-
         map.on("zoomend", syncLayers);
-        syncLayers();
       });
 
       map.on("moveend", () => {
@@ -340,15 +335,28 @@ const map = L.map(containerRef.current, mapOptions).setView([39.6, -8.0], 7);
   }, [postos, mostrarPins]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: "100%",
-        height: "100%",
-        minHeight: "400px",
-        touchAction: "manipulation",
-        WebkitTapHighlightColor: "transparent",
-      }}
-    />
+    <div style={{ width: "100%", height: "100%", minHeight: "400px", position: "relative" }}>
+      <div
+        ref={containerRef}
+        style={{ width: "100%", height: "100%", minHeight: "400px" }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          left: 8,
+          bottom: 8,
+          zIndex: 9999,
+          background: "rgba(0,0,0,0.78)",
+          color: "#fff",
+          fontSize: "12px",
+          padding: "6px 8px",
+          borderRadius: "6px",
+          maxWidth: "85%",
+          pointerEvents: "none",
+        }}
+      >
+        {debugMsg}
+      </div>
+    </div>
   );
 }
